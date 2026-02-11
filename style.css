@@ -1,0 +1,201 @@
+:root {
+    --bg-color: #0d0221;
+    --neon-pink: #ff00ff;
+    --neon-blue: #00ffff;
+    --neon-purple: #9d00ff;
+    --text-color: #ffffff;
+    --card-bg: rgba(255, 255, 255, 0.05);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Orbitron', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: hidden;
+}
+
+/* CRT Scanline Effect */
+.scanlines {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.25) 50%
+    ), linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.06),
+        rgba(0, 255, 0, 0.02),
+        rgba(0, 0, 255, 0.06)
+    );
+    background-size: 100% 4px, 3px 100%;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.container {
+    width: 90%;
+    max-width: 1200px;
+    text-align: center;
+    padding: 2rem;
+    z-index: 1;
+}
+
+header {
+    margin-bottom: 4rem;
+}
+
+h1 {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    color: var(--neon-blue);
+    text-shadow: 
+        0 0 5px var(--neon-blue),
+        0 0 10px var(--neon-blue),
+        0 0 20px var(--neon-blue);
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    letter-spacing: 5px;
+    color: var(--neon-pink);
+    text-shadow: 0 0 5px var(--neon-pink);
+}
+
+.game-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2rem;
+    margin-bottom: 4rem;
+}
+
+.game-card {
+    background: var(--card-bg);
+    border: 2px solid var(--neon-purple);
+    border-radius: 15px;
+    padding: 2rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(5px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 250px;
+}
+
+.game-card:hover {
+    transform: translateY(-10px) scale(1.05);
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 20px var(--neon-blue);
+    background: rgba(0, 255, 255, 0.1);
+}
+
+.game-number {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.game-title {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    transition: color 0.3s ease;
+}
+
+.game-card:hover .game-title {
+    color: var(--neon-blue);
+}
+
+.status {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.7rem;
+    padding: 5px 10px;
+    border: 1px solid var(--neon-pink);
+    color: var(--neon-pink);
+}
+
+.game-card:hover .status {
+    background: var(--neon-pink);
+    color: #000;
+}
+
+footer {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Glitch Effect for Title */
+.glitch {
+    position: relative;
+}
+
+.glitch::before,
+.glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.glitch::before {
+    left: 2px;
+    text-shadow: -2px 0 #ff00c1;
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim 5s infinite linear alternate-reverse;
+}
+
+.glitch::after {
+    left: -2px;
+    text-shadow: -2px 0 #00fff9, 2px 2px #ff00c1;
+    animation: glitch-anim2 1s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim {
+    0% { clip: rect(31px, 9999px, 94px, 0); }
+    20% { clip: rect(62px, 9999px, 42px, 0); }
+    40% { clip: rect(16px, 9999px, 78px, 0); }
+    60% { clip: rect(11px, 9999px, 13px, 0); }
+    80% { clip: rect(85px, 9999px, 40px, 0); }
+    100% { clip: rect(27px, 9999px, 36px, 0); }
+}
+
+@keyframes glitch-anim2 {
+    0% { clip: rect(67px, 9999px, 100px, 0); }
+    20% { clip: rect(24px, 9999px, 2px, 0); }
+    40% { clip: rect(81px, 9999px, 92px, 0); }
+    60% { clip: rect(10px, 9999px, 45px, 0); }
+    80% { clip: rect(15px, 9999px, 72px, 0); }
+    100% { clip: rect(54px, 9999px, 83px, 0); }
+}
+
+/* Response for small screens */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 2rem;
+    }
+    .game-grid {
+        grid-template-columns: 1fr;
+    }
+}
