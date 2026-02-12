@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FREEZE INDICATOR</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #000814;
+            --ice-blue: #00f2ff;
+            --danger-red: #ff0055;
+            --white: #ffffff;
+            --glass: rgba(0, 242, 255, 0.1);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--white);
+            font-family: 'Orbitron', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px; /* Fixed height to prevent collapse and blue bar glitch */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #game-canvas {
+            border: 4px solid var(--ice-blue);
+            background: #001220;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+            display: none;
+        }
+
+        /* Screens */
+        .overlay-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 8, 20, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border: 4px solid var(--ice-blue);
+        }
+
+        h1 {
+            font-family: 'Press Start 2P', cursive;
+            color: var(--ice-blue);
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 15px var(--ice-blue);
+        }
+
+        .btn {
+            background: transparent;
+            border: 2px solid var(--ice-blue);
+            color: var(--ice-blue);
+            font-family: 'Press Start 2P', cursive;
+            padding: 15px 30px;
+            margin: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.8rem;
+            width: 300px;
+        }
+
+        .btn:hover {
+            background: var(--ice-blue);
+            color: #000;
+            box-shadow: 0 0 20px var(--ice-blue);
+        }
+
+        /* UI Elements */
+        #game-ui {
+            width: 100%;
+            display: none;
+            text-align: center;
+            padding: 15px 0;
+            background: rgba(0, 18, 32, 0.8);
+            margin-bottom: 0;
+            border-bottom: none; /* Removed border that looked like a line */
+        }
+
+        #score-display {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 1.2rem;
+            color: var(--ice-blue);
+        }
+
+        .meter-label {
+            font-size: 0.6rem;
+            margin-top: 5px;
+            color: var(--white);
+        }
+
+        .meter-container {
+            width: 250px;
+            height: 10px;
+            background: #111;
+            border: 1px solid var(--white);
+            margin: 5px auto;
+            position: relative;
+        }
+
+        #freeze-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--ice-blue);
+            transition: width 0.1s linear;
+        }
+
+        #dash-bar {
+            height: 100%;
+            width: 100%;
+            background: #ffaa00;
+            transition: width 0.1s linear;
+        }
+
+        /* Leaderboard */
+        #leaderboard-list {
+            width: 80%;
+            margin: 20px 0;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.7rem;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #how-to-play {
+            padding: 2rem;
+            text-align: center;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .hidden { display: none !important; }
+
+        #final-score {
+            font-family: 'Press Start 2P', cursive;
+            color: var(--danger-red);
+            font-size: 1.5rem;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- Game UI -->
+        <div id="game-ui">
+            <div id="score-display">SURVIVAL: 0s</div>
+            
+            <div style="display: flex; justify-content: space-around; padding: 10px;">
+                <div>
+                    <div class="meter-label">FREEZE LEVEL</div>
+                    <div class="meter-container">
+                        <div id="freeze-bar"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="meter-label">DASH CHARGE</div>
+                    <div class="meter-container">
+                        <div id="dash-bar"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5)">
+                SYSTEM STATUS: <span id="difficulty-level">LEVEL 1</span>
+            </div>
+        </div>
+
+        <canvas id="game-canvas" width="800" height="600"></canvas>
+
+        <!-- Main Menu -->
+        <div id="menu-screen" class="overlay-screen">
+            <h1>FREEZE INDICATOR</h1>
+            <button class="btn" onclick="startGame()">START TRANSMISSION</button>
+            <button class="btn" onclick="showScreen('leaderboard-screen')">LEADERBOARD</button>
+            <button class="btn" onclick="showScreen('instructions-screen')">HOW TO PLAY</button>
+            <button class="btn" onclick="window.location.href='../index.html'" style="border-color: var(--danger-red); color: var(--danger-red);">BACK TO HUB</button>
+        </div>
+
+        <!-- Leaderboard -->
+        <div id="leaderboard-screen" class="overlay-screen hidden">
+            <h1>TOP OPERATORS</h1>
+            <div id="leaderboard-list"></div>
+            <button class="btn" onclick="showScreen('menu-screen')">BACK TO TERMINAL</button>
+        </div>
+
+        <!-- Instructions -->
+        <div id="instructions-screen" class="overlay-screen hidden">
+            <h1>INSTRUCTIONS</h1>
+            <div id="how-to-play">
+                <p>WASD TO MOVE THE OPERATOR.</p>
+                <p style="color: var(--ice-blue)">MOTION HEATS UP YOUR CORE.</p>
+                <p>STILLNESS COOLS YOU DOWN.</p>
+                <p style="color: #ffaa00">SHIFT + WASD TO DASH (10S COOLDOWN).</p>
+                <p>DASH PROVIDES 1.5S IMMUNITY.</p>
+                <p style="color: var(--danger-red)">IF THE FREEZE BAR FILLS, YOU FAIL.</p>
+            </div>
+            <button class="btn" onclick="showScreen('menu-screen')">BACK TO TERMINAL</button>
+        </div>
+
+        <!-- Game Over -->
+        <div id="gameover-screen" class="overlay-screen hidden">
+            <h1 id="death-reason">FATAL ERROR</h1>
+            <div id="final-score">SURVIVAL: 0s</div>
+            <button class="btn" onclick="startGame()">REBOOT SYSTEM (PLAY AGAIN)</button>
+            <button class="btn" onclick="showScreen('menu-screen')">EXIT TO MAIN MENU</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score-display');
+        const freezeBar = document.getElementById('freeze-bar');
+        const dashBar = document.getElementById('dash-bar');
+        const levelEl = document.getElementById('difficulty-level');
+        const ui = document.getElementById('game-ui');
+
+        let player = { 
+            x: 400, 
+            y: 300, 
+            radius: 12, 
+            speed: 5,
+            isImmune: false,
+            dashCharge: 100,
+            isDashing: false
+        };
+        
+        let obstacles = [];
+        let score = 0;
+        let freezeLevel = 0;
+        let gameActive = false;
+        let milestone = 10;
+        let level = 1;
+        
+        const keys = {};
+
+        // Leaderboard logic
+        let highScores = JSON.parse(localStorage.getItem('freeze_highscores') || '[]');
+
+        function updateLeaderboard() {
+            const list = document.getElementById('leaderboard-list');
+            list.innerHTML = '';
+            highScores.sort((a,b) => b - a).slice(0, 5).forEach((val, i) => {
+                const div = document.createElement('div');
+                div.className = 'leaderboard-item';
+                div.innerHTML = `<span>#${i+1} OPERATOR</span> <span>${Math.floor(val)}s</span>`;
+                list.appendChild(div);
+            });
+        }
+
+        function saveScore(s) {
+            highScores.push(s);
+            highScores = [...new Set(highScores)].sort((a,b) => b-a).slice(0, 10);
+            localStorage.setItem('freeze_highscores', JSON.stringify(highScores));
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.overlay-screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+            if (id === 'leaderboard-screen') updateLeaderboard();
+        }
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') handleDash();
+        });
+        window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+        function handleDash() {
+            if (!gameActive || player.dashCharge < 100 || player.isDashing) return;
+
+            let dx = 0;
+            let dy = 0;
+            if (keys['KeyW']) dy -= 1;
+            if (keys['KeyS']) dy += 1;
+            if (keys['KeyA']) dx -= 1;
+            if (keys['KeyD']) dx += 1;
+
+            if (dx === 0 && dy === 0) return;
+
+            player.isDashing = true;
+            player.isImmune = true;
+            player.dashCharge = 0;
+
+            const dashDist = 160;
+            const normalize = Math.sqrt(dx*dx + dy*dy);
+            
+            player.x += (dx / normalize) * dashDist;
+            player.y += (dy / normalize) * dashDist;
+
+            player.x = Math.max(player.radius, Math.min(800 - player.radius, player.x));
+            player.y = Math.max(player.radius, Math.min(600 - player.radius, player.y));
+
+            setTimeout(() => {
+                player.isImmune = false;
+                player.isDashing = false;
+            }, 1500);
+        }
+
+        function spawnObstacle() {
+            if (!gameActive) return;
+            const side = Math.floor(Math.random() * 4);
+            let x, y, vx, vy;
+            const size = Math.random() * 15 + 10;
+            // Speed increases with level
+            const speed = (Math.random() * 2 + 1) * (1 + level * 0.2);
+
+            if (side === 0) { x = -size; y = Math.random() * 600; vx = speed; vy = (Math.random() - 0.5) * 2; }
+            else if (side === 1) { x = 800 + size; y = Math.random() * 600; vx = -speed; vy = (Math.random() - 0.5) * 2; }
+            else if (side === 2) { x = Math.random() * 800; y = -size; vx = (Math.random() - 0.5) * 2; vy = speed; }
+            else { x = Math.random() * 800; y = 600 + size; vx = (Math.random() - 0.5) * 2; vy = -speed; }
+
+            obstacles.push({ x, y, vx, vy, size });
+            
+            // Spawn rate increases with level
+            const spawnRate = Math.max(150, 1000 - level * 100);
+            setTimeout(spawnObstacle, spawnRate);
+        }
+
+        function startGame() {
+            document.querySelectorAll('.overlay-screen').forEach(s => s.classList.add('hidden'));
+            canvas.style.display = 'block';
+            ui.style.display = 'block';
+            gameActive = true;
+            score = 0;
+            freezeLevel = 0;
+            level = 1;
+            milestone = 10;
+            obstacles = [];
+            player.x = 400;
+            player.y = 300;
+            player.dashCharge = 100;
+            player.isImmune = false;
+            spawnObstacle();
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (!gameActive) return;
+
+            // Movement & Freeze Logic
+            let dx = 0;
+            let dy = 0;
+            if (keys['KeyW']) dy -= 1;
+            if (keys['KeyS']) dy += 1;
+            if (keys['KeyA']) dx -= 1;
+            if (keys['KeyD']) dx += 1;
+
+            const moving = dx !== 0 || dy !== 0;
+            
+            if (moving) {
+                const diag = (dx !== 0 && dy !== 0) ? 0.707 : 1;
+                player.x += dx * player.speed * diag;
+                player.y += dy * player.speed * diag;
+                
+                // Bounds check
+                player.x = Math.max(player.radius, Math.min(800 - player.radius, player.x));
+                player.y = Math.max(player.radius, Math.min(600 - player.radius, player.y));
+                
+                freezeLevel = Math.min(100, freezeLevel + 0.5);
+            } else {
+                freezeLevel = Math.max(0, freezeLevel - 0.8);
+            }
+
+            // Dash Recharge (10 seconds to full)
+            if (player.dashCharge < 100) {
+                player.dashCharge += (100 / (10 * 60)); // 100% over 10s at 60fps
+            }
+            dashBar.style.width = player.dashCharge + '%';
+            dashBar.style.backgroundColor = player.dashCharge >= 100 ? '#ffaa00' : '#555';
+
+            freezeBar.style.width = freezeLevel + '%';
+            if (freezeLevel >= 100) return gameOver("FROZEN SOLID");
+
+            // Difficulty Milestone Logic
+            if (score >= milestone) {
+                level++;
+                milestone += 15;
+                levelEl.textContent = `LEVEL ${level}`;
+                levelEl.style.color = '#ff0055';
+                setTimeout(() => levelEl.style.color = '#00f2ff', 500);
+            }
+
+            // Update Obstacles
+            obstacles.forEach((obs, i) => {
+                obs.x += obs.vx;
+                obs.y += obs.vy;
+
+                const dist = Math.hypot(player.x - obs.x, player.y - obs.y);
+                if (!player.isImmune && dist < player.radius + obs.size) return gameOver("SHATTERED");
+
+                if (obs.x < -200 || obs.x > 1000 || obs.y < -200 || obs.y > 800) {
+                    obstacles.splice(i, 1);
+                }
+            });
+
+            score += 1/60;
+            scoreEl.textContent = `SURVIVAL: ${Math.floor(score)}s`;
+
+            // Draw
+            ctx.clearRect(0, 0, 800, 600);
+
+            // Draw Shards
+            obstacles.forEach(obs => {
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.moveTo(obs.x, obs.y - obs.size);
+                ctx.lineTo(obs.x + obs.size, obs.y);
+                ctx.lineTo(obs.x, obs.y + obs.size);
+                ctx.lineTo(obs.x - obs.size, obs.y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#00f2ff';
+                ctx.stroke();
+            });
+
+            // Draw Player
+            const iceFactor = freezeLevel / 100;
+            ctx.fillStyle = player.isImmune ? '#ffaa00' : `rgb(${255 * (1-iceFactor)}, ${242 * iceFactor}, 255)`;
+            ctx.shadowBlur = player.isImmune ? 30 : 15;
+            ctx.shadowColor = ctx.fillStyle;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Immunity Ring
+            if (player.isImmune) {
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, player.radius + 5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameOver(reason) {
+            gameActive = false;
+            saveScore(score);
+            document.getElementById('death-reason').textContent = reason;
+            document.getElementById('final-score').textContent = `SURVIVAL: ${Math.floor(score)}s`;
+            showScreen('gameover-screen');
+            canvas.style.display = 'none';
+            ui.style.display = 'none';
+        }
+
+        updateLeaderboard();
+    </script>
+</body>
+</html>
