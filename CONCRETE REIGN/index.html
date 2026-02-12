@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CONCRETE REIGN | RAVENPORT</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Three.js CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <!-- Game Canvas Container -->
+    <div id="game-container"></div>
+
+    <!-- HUD Layer -->
+    <div id="hud" class="ui-layer" style="display: block;">
+        <div id="notification-area"></div>
+        <div class="hud-top-left">
+            <div id="wanted-stars">
+                <span class="star">☆</span><span class="star">☆</span><span class="star">☆</span><span class="star">☆</span><span class="star">☆</span>
+            </div>
+            <div id="district-info">DOCKSIDE INDUSTRIAL</div>
+        </div>
+
+        <div class="hud-top-right">
+            <div id="chaos-score">CHAOS: 000000</div>
+            <div id="rank-display">RANK: OUTSIDER</div>
+        </div>
+
+        <div class="hud-bottom-left">
+            <div class="minimap-container">
+                <canvas id="minimap"></canvas>
+            </div>
+        </div>
+
+        <div class="hud-bottom-right">
+            <div class="stat-bars">
+                <div class="bar-container health">
+                    <div id="hp-fill" class="fill"></div>
+                    <span class="label">RESILIENCE</span>
+                </div>
+                <div class="bar-container stamina">
+                    <div id="stamina-fill" class="fill"></div>
+                    <span class="label">STAMINA</span>
+                </div>
+                <div class="bar-container dash">
+                    <div id="dash-fill" class="fill"></div>
+                    <span class="label">DASH</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Crosshair -->
+        <div id="crosshair"></div>
+    </div>
+
+    <!-- Menus -->
+    <div id="pause-menu" class="overlay hidden">
+        <div class="menu-content">
+            <h2>PAUSED</h2>
+            <nav>
+                <button class="menu-btn" onclick="resumeGame()">RESUME</button>
+                <button class="menu-btn" onclick="ui.showScreen('map')">MAP</button>
+                <button class="menu-btn" onclick="ui.showScreen('missions')">MISSIONS</button>
+                <button class="menu-btn" onclick="ui.showScreen('leaderboard')">MOST WANTED</button>
+                <button class="menu-btn" onclick="ui.showScreen('settings')">SETTINGS</button>
+                <button class="menu-btn" onclick="window.location.href='../index.html'">EXIT TO HUB</button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Leaderboard Template -->
+    <div id="leaderboard-screen" class="overlay hidden">
+        <div class="menu-content wide">
+            <h2>MOST WANTED: RAVENPORT</h2>
+            <div id="leaderboard-table">
+                <div class="table-header">
+                    <span>RANK</span><span>OPERATOR</span><span>CHAOS</span><span>HEAT</span>
+                </div>
+                <div id="leaderboard-rows">
+                    <!-- AI Scores will be injected here -->
+                    <div class="leaderboard-row"><span>#1</span><span>MAKO</span><span>50,000</span><span>⭐⭐⭐⭐⭐</span></div>
+                    <div class="leaderboard-row"><span>#2</span><span>SLICK</span><span>35,000</span><span>⭐⭐⭐⭐</span></div>
+                    <div class="leaderboard-row"><span>#3</span><span>VIC</span><span>20,000</span><span>⭐⭐⭐</span></div>
+                    <div class="leaderboard-row player-row"><span>#4</span><span>YOU</span><span id="lb-player-chaos">0</span><span id="lb-player-heat">☆</span></div>
+                </div>
+            </div>
+            <button class="menu-btn" onclick="ui.hideScreens()">BACK</button>
+        </div>
+    </div>
+
+    <!-- Map Template -->
+    <div id="map-screen" class="overlay hidden">
+        <div class="menu-content">
+            <h2>RAVENPORT CITY MAP</h2>
+            <div style="border: 2px solid var(--primary); height: 300px; display: flex; align-items: center; justify-content: center; background: #111; margin-bottom: 20px;">
+                [ MAP DATA OFFLINE ]
+            </div>
+            <button class="menu-btn" onclick="ui.hideScreens()">BACK</button>
+        </div>
+    </div>
+
+    <!-- Missions Template -->
+    <div id="missions-screen" class="overlay hidden">
+        <div class="menu-content">
+            <h2>MISSION LOG</h2>
+            <div id="mission-list-container" style="display: flex; gap: 20px; padding: 20px;">
+                <div id="mission-list" style="flex: 1; text-align: left; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 20px;">
+                    <!-- Missions will be injected here -->
+                </div>
+                <div id="mission-details" style="flex: 1.5; text-align: left; min-height: 200px;">
+                    <div id="empty-details" style="color: rgba(255,255,255,0.3); font-style: italic;">Select a mission to view data...</div>
+                    <div id="details-content" class="hidden">
+                        <h3 id="detail-title" style="color: var(--primary); margin-bottom: 10px;"></h3>
+                        <p id="detail-desc" style="margin-bottom: 15px; font-size: 0.9rem; line-height: 1.4;"></p>
+                        <div style="font-size: 0.8rem; color: var(--gold); margin-bottom: 5px;">OBJECTIVES:</div>
+                        <ul id="detail-objectives" style="font-size: 0.85rem; padding-left: 15px;"></ul>
+                    </div>
+                </div>
+            </div>
+            <button class="menu-btn" onclick="ui.hideScreens()">BACK</button>
+        </div>
+    </div>
+
+    <!-- Settings Template -->
+    <div id="settings-screen" class="overlay hidden">
+        <div class="menu-content">
+            <h2>SYSTEM SETTINGS</h2>
+            <div style="padding: 20px;">
+                <p>GRAPHICS: ULTRA</p>
+                <p>AUDIO: 100%</p>
+                <p>CONTROLS: WASD</p>
+            </div>
+            <button class="menu-btn" onclick="ui.hideScreens()">BACK</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
