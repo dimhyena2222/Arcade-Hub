@@ -259,6 +259,8 @@
                 <p>STRIKE A BALANCE TO SURVIVE.</p>
                 <p style="color: #ffaa00">SHIFT + WASD TO DASH (10S COOLDOWN).</p>
                 <p>DASH PROVIDES 1.5S IMMUNITY.</p>
+                <p style="color: #a200ff">CLICK TO PARRY (4S COOLDOWN).</p>
+                <p>PARRY DEFLECTS SHARDS AND BLOCKS BEAMS.</p>
             </div>
             <button class="btn" onclick="showScreen('menu-screen')">BACK TO TERMINAL</button>
         </div>
@@ -444,13 +446,13 @@
                 targetX, targetY,
                 angle,
                 startTime: Date.now(),
-                warmTime: 1200,
+                warmTime: 1800,
                 fireTime: 800,
                 fadeTime: 600,
                 phase: 'warming'
             });
 
-            const nextSpawn = Math.max(1200, 4500 - level * 400);
+            const nextSpawn = Math.max(2500, 7000 - level * 500);
             setTimeout(spawnBlaster, nextSpawn);
         }
 
