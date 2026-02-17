@@ -386,6 +386,7 @@ class ConcreteReign {
         this.container = document.getElementById('game-container');
         this.drops = [];
         this.bullets = [];
+        this.environmentObjects = []; // For collisions and minimap
         this.isPaused = false;
         this.gameStarted = true;
         this.enemies = [];
@@ -425,24 +426,31 @@ class ConcreteReign {
         // Create City
         this.createCity();
         
-        // DOCKSIDE DRAPES - Weapon Shop
+        // DOCKSIDE DRAPES - Weapon Shop (Moved inward)
         const shopGeo = new THREE.BoxGeometry(20, 15, 20);
         const shopMat = new THREE.MeshPhongMaterial({ color: 0x330000 });
         this.shopBuilding = new THREE.Mesh(shopGeo, shopMat);
-        this.shopBuilding.position.set(100, 7.5, 100); // Put it in a corner
+        this.shopBuilding.position.set(80, 7.5, 80); 
         this.scene.add(this.shopBuilding);
+
+        // Add shop to environment objects
+        this.environmentObjects.push({
+            type: 'shop',
+            x: 80, z: 80,
+            w: 20, d: 20
+        });
         
         const shopSignGeo = new THREE.PlaneGeometry(10, 3);
         const shopSignMat = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide });
         const sign = new THREE.Mesh(shopSignGeo, shopSignMat);
-        sign.position.set(100, 12, 110.1);
+        sign.position.set(80, 12, 90.1);
         this.scene.add(sign);
 
         // Giant Neon Pillar for visibility
         const pillarGeo = new THREE.CylinderGeometry(0.5, 0.5, 100, 8);
         const pillarMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.3 });
         const shopPillar = new THREE.Mesh(pillarGeo, pillarMat);
-        shopPillar.position.set(100, 50, 100);
+        shopPillar.position.set(80, 50, 80);
         this.scene.add(shopPillar);
 
         // Persistent Shop Icon (3D Sprite)
@@ -456,14 +464,14 @@ class ConcreteReign {
         const iconTex = new THREE.CanvasTexture(canvas);
         const iconMat = new THREE.SpriteMaterial({ map: iconTex, depthTest: false });
         this.shopSprite = new THREE.Sprite(iconMat);
-        this.shopSprite.position.set(100, 25, 100);
+        this.shopSprite.position.set(80, 25, 80);
         this.shopSprite.scale.set(10, 10, 1);
         this.scene.add(this.shopSprite);
         
         const shopDoorGeo = new THREE.PlaneGeometry(4, 6);
         const shopDoorMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
         this.shopDoor = new THREE.Mesh(shopDoorGeo, shopDoorMat);
-        this.shopDoor.position.set(100, 3, 110.1);
+        this.shopDoor.position.set(80, 3, 90.1);
         this.scene.add(this.shopDoor);
 
         // Player Setup
@@ -725,16 +733,46 @@ class ConcreteReign {
 
         // Buildings & Sidewalks (Compact)
         const swMat = new THREE.MeshPhongMaterial({ map: sidewalkTex });
+        const occupiedZones = [
+            { x: 100, z: 100, w: 25 }, // Dockside Drapes zone
+            { x: 0, z: 0, w: 10 }      // Player spawn zone
+        ];
+
         for (let i = 0; i < 40; i++) {
             const h = Math.random() * 20 + 10;
             const w = Math.random() * 8 + 6;
+            const buffer = 4; // Sidewalk buffer
             
-            // Grid alignment roughly
-            let bx = (Math.random() - 0.5) * (groundSize - 30);
-            let bz = (Math.random() - 0.5) * (groundSize - 30);
-            // Snap away from roads
-            if(Math.abs(bx % 40) < 10) bx += 15;
-            if(Math.abs(bz % 40) < 10) bz += 15;
+            let bx, bz, tooClose;
+            let attempts = 0;
+            
+            do {
+                tooClose = false;
+                bx = (Math.random() - 0.5) * (groundSize - 30);
+                bz = (Math.random() - 0.5) * (groundSize - 30);
+                
+                // 1. Check Road Collision (Roads are every 40 units starting at -80)
+                const roadMargin = 10; // Road width is 12, center-to-edge is 6, plus margin
+                if (Math.abs(bx % 40) < roadMargin || Math.abs((bx + 20) % 40) < roadMargin) tooClose = true;
+                if (Math.abs(bz % 40) < roadMargin || Math.abs((bz + 20) % 40) < roadMargin) tooClose = true;
+                
+                // 2. Check Overlap with other buildings (AABB)
+                if (!tooClose) {
+                    for (const zone of occupiedZones) {
+                        const dx = Math.abs(bx - zone.x);
+                        const dz = Math.abs(bz - zone.z);
+                        if (dx < (w + zone.w) / 2 + 2 && dz < (w + zone.w) / 2 + 2) {
+                            tooClose = true;
+                            break;
+                        }
+                    }
+                }
+                attempts++;
+            } while (tooClose && attempts < 100);
+
+            if (attempts >= 100) continue; // Skip if no spot found
+
+            occupiedZones.push({ x: bx, z: bz, w: w });
 
             // Add Sidewalk Base
             const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(w + 4, 0.4, w + 4), swMat);
@@ -757,6 +795,14 @@ class ConcreteReign {
             building.position.set(bx, h / 2 + 0.4, bz);
             building.castShadow = true; building.receiveShadow = true;
             this.scene.add(building);
+
+            // COLLISION: Add building to environment objects
+            this.environmentObjects.push({
+                type: 'building',
+                x: bx, z: bz,
+                w: w, d: w,
+                h: h
+            });
             
             // Add Streetlight next to building
             const streetLight = new THREE.Group();
@@ -770,6 +816,29 @@ class ConcreteReign {
             streetLight.position.set(bx + w/2 + 2, 0, bz + w/2 + 2);
             this.scene.add(streetLight);
             this.streetLights.push(light);
+        }
+
+        // Add Bushes
+        const bushMat = new THREE.MeshPhongMaterial({ color: 0x113300 });
+        for (let i = 0; i < 40; i++) {
+            const bx = (Math.random() - 0.5) * 180;
+            const bz = (Math.random() - 0.5) * 180;
+            
+            // Check road collision (Roads are every 40 units)
+            if (Math.abs(bx % 40) < 12 || Math.abs((bx + 20) % 40) < 12) continue;
+            if (Math.abs(bz % 40) < 12 || Math.abs((bz + 20) % 40) < 12) continue;
+
+            const size = 0.8 + Math.random() * 0.6;
+            const bush = new THREE.Mesh(new THREE.SphereGeometry(size, 8, 8), bushMat);
+            bush.position.set(bx, size / 2, bz);
+            bush.castShadow = true;
+            this.scene.add(bush);
+            
+            this.environmentObjects.push({
+                type: 'bush',
+                x: bx, z: bz,
+                w: size * 1.5, d: size * 1.5
+            });
         }
     }
 
@@ -978,10 +1047,28 @@ class ConcreteReign {
         if(this.keys['KeyA']) move.x += 1;
         if(this.keys['KeyD']) move.x -= 1;
         
+        const oldPos = this.player.mesh.position.clone();
         if(move.length() > 0) {
             move.normalize();
             move.applyEuler(new THREE.Euler(0, this.player.mesh.rotation.y, 0));
             this.player.mesh.position.add(move.multiplyScalar(speed * crouchMod));
+        }
+
+        // Environmental Collision
+        const pr = 0.6; // Player collision radius
+        for (const obj of this.environmentObjects) {
+            const dx = Math.abs(this.player.mesh.position.x - obj.x);
+            const dz = Math.abs(this.player.mesh.position.z - obj.z);
+            const combinedW = (obj.w / 2) + pr;
+            const combinedD = (obj.d / 2) + pr;
+
+            if (dx < combinedW && dz < combinedD) {
+                // Sliding collision: block axis that was crossed
+                const dxOld = Math.abs(oldPos.x - obj.x);
+                const dzOld = Math.abs(oldPos.z - obj.z);
+                if (dxOld >= (obj.w/2 + pr)) this.player.mesh.position.x = oldPos.x;
+                if (dzOld >= (obj.d/2 + pr)) this.player.mesh.position.z = oldPos.z;
+            }
         }
 
         // Invisible Wall Collision Logic
@@ -1081,82 +1168,94 @@ class ConcreteReign {
         const c = document.getElementById('minimap');
         if(!c) return;
         const ctx = c.getContext('2d');
-        ctx.fillStyle = '#111'; 
-        ctx.fillRect(0,0,300,300); // Clear
+        const size = 180;
+        const center = size / 2;
+        const scale = 2; // Pixels per meter
+
+        c.width = size; c.height = size; 
         
-        // Map Center (Player) is at 150,150
-        const mapScale = 2; // Zoom level
-
-        // Draw Player Arrow
+        ctx.fillStyle = '#0a0a0c'; 
+        ctx.fillRect(0, 0, size, size);
+        
         ctx.save();
-        ctx.translate(150, 150);
-        ctx.rotate(-this.player.mesh.rotation.y);
-        ctx.fillStyle = '#c41e3a';
-        ctx.beginPath();
-        ctx.moveTo(0, -5); ctx.lineTo(4, 5); ctx.lineTo(-4, 5);
-        ctx.fill();
-        ctx.restore();
+        ctx.translate(center, center);
+        
+        const px = this.player.mesh.position.x;
+        const pz = this.player.mesh.position.z;
 
-        // Draw Enemies
-        ctx.fillStyle = '#ff0000';
-        this.enemies.forEach(e => {
-            const dx = (e.mesh.position.x - this.player.mesh.position.x) * mapScale;
-            const dy = (e.mesh.position.z - this.player.mesh.position.z) * mapScale;
+        // Draw Roads (+Z is UP)
+        ctx.fillStyle = '#1a1a1f';
+        for(let i = -80; i <= 80; i += 40) {
+            // Horizontal Roads (Z-parallel logic for canvas Y)
+            ctx.fillRect((-100 - px) * scale, (pz - i - 6) * scale, 200 * scale, 12 * scale);
+            // Vertical Roads (X-parallel logic for canvas X)
+            ctx.fillRect((i - 6 - px) * scale, (pz - 100) * scale, 12 * scale, 200 * scale);
+        }
+
+        // Environment Objects (Buildings/Bushes/Shop)
+        this.environmentObjects.forEach(obj => {
+            const relX = (obj.x - px) * scale;
+            const relZ = (pz - obj.z) * scale; // Inverted mapping: +Z is UP
             
-            // Only draw if within minimap bounds roughly
-            if(Math.abs(dx) < 140 && Math.abs(dy) < 140) {
-                 // In 2D canvas, y is down, so we map 3D z to canvas y
-                 ctx.fillRect(150 + dx - 2, 150 + dy - 2, 4, 4);
+            if (obj.type === 'shop') {
+                ctx.fillStyle = '#600';
+                ctx.fillRect(relX - (obj.w/2)*scale, relZ - (obj.d/2)*scale, obj.w*scale, obj.d*scale);
+                ctx.strokeStyle = '#f00'; ctx.strokeRect(relX - (obj.w/2)*scale, relZ - (obj.d/2)*scale, obj.w*scale, obj.d*scale);
+            } else if (obj.type === 'building') {
+                ctx.fillStyle = '#333';
+                ctx.fillRect(relX - (obj.w/2)*scale, relZ - (obj.d/2)*scale, obj.w*scale, obj.d*scale);
+            } else if (obj.type === 'bush') {
+                ctx.fillStyle = '#141';
+                ctx.beginPath();
+                ctx.arc(relX, relZ, (obj.w/2)*scale, 0, Math.PI*2);
+                ctx.fill();
             }
         });
-        
-        // Draw Mission Marker
-        if (this.missionManager.marker && this.missionManager.activeMission) {
-             const mPos = this.missionManager.marker.position;
-             const dx = (mPos.x - this.player.mesh.position.x) * mapScale;
-             const dy = (mPos.z - this.player.mesh.position.z) * mapScale;
-             
-             ctx.fillStyle = '#ffff00';
-             if(Math.abs(dx) < 140 && Math.abs(dy) < 140) {
-                 ctx.beginPath();
-                 ctx.arc(150 + dx, 150 + dy, 4, 0, Math.PI*2);
-                 ctx.fill();
-             } else {
-                 // Draw direction indicator on edge?
-             }
+
+        // NPCs
+        this.enemies.forEach(e => {
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect((e.mesh.position.x - px) * scale - 2, (pz - e.mesh.position.z) * scale - 2, 4, 4);
+        });
+
+        // Mission Marker logic (if exists)
+        if (this.missionManager && this.missionManager.activeMission) {
+            const mPos = this.missionManager.target;
+            if (mPos) {
+                const relX = (mPos.x - px) * scale;
+                const relZ = (pz - mPos.z) * scale;
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(relX, relZ, 4, 0, Math.PI*2);
+                ctx.fill();
+            }
         }
 
-        // Draw Shop Marker
-        if (this.shopDoor) {
-             const sPos = this.shopDoor.position;
-             const dx = (sPos.x - this.player.mesh.position.x) * mapScale;
-             const dy = (sPos.z - this.player.mesh.position.z) * mapScale;
-             
-             // Clamp to edges if too far
-             let mapX = 150 + dx;
-             let mapY = 150 + dy;
-             let isOffscreen = false;
-
-             if (mapX < 10) { mapX = 10; isOffscreen = true; }
-             if (mapX > 290) { mapX = 290; isOffscreen = true; }
-             if (mapY < 10) { mapY = 10; isOffscreen = true; }
-             if (mapY > 290) { mapY = 290; isOffscreen = true; }
-
-             ctx.fillStyle = '#00ff00';
-             ctx.beginPath();
-             ctx.arc(mapX, mapY, isOffscreen ? 4 : 6, 0, Math.PI*2);
-             ctx.fill();
-             ctx.strokeStyle = '#fff';
-             ctx.lineWidth = 2;
-             ctx.stroke();
-
-             if (isOffscreen) {
-                 ctx.fillStyle = '#fff';
-                 ctx.font = 'bold 10px Arial';
-                 ctx.textAlign = 'center';
-                 ctx.fillText('SHOP', mapX, mapY - 8);
-             }
+        // Shop Pointer (on edge if far)
+        if (this.shopBuilding) {
+            const dx = (this.shopBuilding.position.x - px) * scale;
+            const dz = (pz - this.shopBuilding.position.z) * scale;
+            const limit = size/2 - 10;
+            if (Math.abs(dx) > limit || Math.abs(dz) > limit) {
+                const angle = Math.atan2(dz, dx);
+                const ex = Math.cos(angle) * limit;
+                const ez = Math.sin(angle) * limit;
+                ctx.fillStyle = '#00ff00';
+                ctx.beginPath(); ctx.arc(ex, ez, 4, 0, Math.PI*2); ctx.fill();
+            }
         }
+
+        ctx.restore();
+
+        // Player Pointer (Static Center)
+        ctx.save();
+        ctx.translate(center, center);
+        ctx.rotate(-this.player.mesh.rotation.y);
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(0, -6); ctx.lineTo(5, 6); ctx.lineTo(-5, 6);
+        ctx.fill();
+        ctx.restore();
     }
 }
 
