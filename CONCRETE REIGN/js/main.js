@@ -79,6 +79,9 @@ class Enemy {
         this.speed = type === 'POLICE' ? 0.12 : 0.08;
         this.state = 'IDLE';
         this.mesh = new THREE.Group();
+        this.lastAttackTime = 0;
+        this.isPunching = false;
+        this.punchTime = 0;
         
         // Detailed Low Poly Enemy
         const torsoInfo = type === 'POLICE' ? {col: 0x000044, scale: [0.6, 0.9, 0.3]} : {col: 0x333333, scale: [0.6, 0.8, 0.3]};
@@ -89,18 +92,28 @@ class Enemy {
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.3, 0.25), new THREE.MeshPhongMaterial({ color: 0xffd1aa })); // Skin
         head.position.y = 1.85;
 
-        // Limbs
-        const armGeo = new THREE.BoxGeometry(0.15, 0.7, 0.15);
-        const legGeo = new THREE.BoxGeometry(0.18, 0.8, 0.18);
+        // Limbs with Joints
         const limbMat = new THREE.MeshPhongMaterial({ color: torsoInfo.col });
-        const skinMat = new THREE.MeshPhongMaterial({color: 0xffd1aa});
+        const armGeo = new THREE.BoxGeometry(0.15, 0.35, 0.15);
+        const legGeo = new THREE.BoxGeometry(0.18, 0.45, 0.18);
         
-        const lArm = new THREE.Mesh(armGeo, limbMat); lArm.position.set(-0.4, 1.2, 0);
-        const rArm = new THREE.Mesh(armGeo, limbMat); rArm.position.set(0.4, 1.2, 0);
-        const lLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({color: 0x111111})); lLeg.position.set(-0.2, 0.4, 0);
-        const rLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({color: 0x111111})); rLeg.position.set(0.2, 0.4, 0);
+        const lUpperArm = new THREE.Mesh(armGeo, limbMat); lUpperArm.position.set(-0.4, 1.35, 0);
+        const lLowerArm = new THREE.Mesh(armGeo, limbMat); lLowerArm.position.y = -0.35;
+        lUpperArm.add(lLowerArm);
 
-        this.mesh.add(torso, head, lArm, rArm, lLeg, rLeg);
+        const rUpperArm = new THREE.Mesh(armGeo, limbMat); rUpperArm.position.set(0.4, 1.35, 0);
+        const rLowerArm = new THREE.Mesh(armGeo, limbMat); rLowerArm.position.y = -0.35;
+        rUpperArm.add(rLowerArm);
+
+        const lUpperLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({color: 0x111111})); lUpperLeg.position.set(-0.2, 0.65, 0);
+        const lLowerLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({color: 0x111111})); lLowerLeg.position.y = -0.45;
+        lUpperLeg.add(lLowerLeg);
+
+        const rUpperLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({color: 0x111111})); rUpperLeg.position.set(0.2, 0.65, 0);
+        const rLowerLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({color: 0x111111})); rLowerLeg.position.y = -0.45;
+        rUpperLeg.add(rLowerLeg);
+
+        this.mesh.add(torso, head, lUpperArm, rUpperArm, lUpperLeg, rUpperLeg);
         this.spawn();
         scene.add(this.mesh);
         
@@ -151,9 +164,44 @@ class Enemy {
             }
             this.mesh.lookAt(player.mesh.position);
             
-            if (dist < 2 && Math.random() < 0.05) { // More aggressive attack
-                player.takeDamage(this.type === 'POLICE' ? 5 : 2);
+            const now = Date.now();
+            if (dist < 2 && now - this.lastAttackTime > 1500) { 
+                this.lastAttackTime = now;
+                this.isPunching = true;
+                this.punchTime = now;
+                player.takeDamage(this.type === 'POLICE' ? 10 : 5);
+                setTimeout(() => { if(this.mesh) this.isPunching = false; }, 400);
             }
+        }
+
+        // --- NPC Animation ---
+        const t = Date.now() * 0.005;
+        if (this.isPunching) {
+            const punchProgress = (Date.now() - this.punchTime) / 400;
+            const armAngle = -Math.sin(punchProgress * Math.PI) * 1.5;
+            this.mesh.children[3].rotation.x = armAngle; // Right Upper Arm
+            this.mesh.children[3].children[0].rotation.x = Math.sin(punchProgress * Math.PI) * 0.8; // Right Forearm
+            this.mesh.children[2].rotation.x = -armAngle * 0.2; // Left Arm counter
+        } else if (dist > 1.5 && this.state === 'ATTACK') {
+             // NPC Walk
+             const walkSpeed = 10;
+             this.mesh.children[2].rotation.x = Math.sin(t * walkSpeed) * 0.5;
+             this.mesh.children[3].rotation.x = -Math.sin(t * walkSpeed) * 0.5;
+             this.mesh.children[4].rotation.x = -Math.sin(t * walkSpeed) * 0.5;
+             this.mesh.children[5].rotation.x = Math.sin(t * walkSpeed) * 0.5;
+             
+             // Move forearms/calves for fluidness
+             this.mesh.children[2].children[0].rotation.x = -Math.abs(Math.sin(t * walkSpeed)) * 0.3;
+             this.mesh.children[3].children[0].rotation.x = -Math.abs(Math.sin(t * walkSpeed)) * 0.3;
+             this.mesh.children[4].children[0].rotation.x = Math.abs(Math.sin(t * walkSpeed)) * 0.5;
+             this.mesh.children[5].children[0].rotation.x = Math.abs(Math.sin(t * walkSpeed)) * 0.5;
+        } else {
+             // Reset pose
+             for(let i=2; i<6; i++) {
+                 this.mesh.children[i].rotation.x = 0;
+                 this.mesh.children[i].rotation.y = 0;
+                 if(this.mesh.children[i].children[0]) this.mesh.children[i].children[0].rotation.x = 0;
+             }
         }
     }
 }
@@ -288,7 +336,80 @@ class ConcreteReign {
             onGround: false, 
             stamina: 100,
             isPunching: false,
-            punchTime: 0
+            punchTime: 0,
+            isBlocking: false,
+            lastBlockTime: 0,
+            parryActive: false,
+            takeDamage: (amt) => {
+                let finalAmt = amt;
+                const now = Date.now();
+                
+                if (this.player.isBlocking) {
+                    const blockDuration = now - this.player.lastBlockTime;
+                    // Parry window: first 250ms of blocking
+                    if (blockDuration < 250) {
+                        // PARRY
+                        finalAmt = 0;
+                        window.ui.showNotification("PARRY!");
+                        
+                        // Flash Cyan for Parry
+                        this.player.mesh.children.forEach(c => {
+                            if(c.material && !c.userData.isFlashing) {
+                                c.userData.isFlashing = true;
+                                const originalHex = c.material.color.getHex();
+                                c.material.color.set(0x00ffff);
+                                setTimeout(() => {
+                                    c.material.color.set(originalHex);
+                                    c.userData.isFlashing = false;
+                                }, 150);
+                            }
+                        });
+                    } else {
+                        // BLOCK (50% damage reduction)
+                        finalAmt = amt * 0.5;
+                        // Flash White for Block
+                        this.player.mesh.children.forEach(c => {
+                            if(c.material && !c.userData.isFlashing) {
+                                c.userData.isFlashing = true;
+                                const originalHex = c.material.color.getHex();
+                                c.material.color.set(0xffffff);
+                                setTimeout(() => {
+                                    c.material.color.set(originalHex);
+                                    c.userData.isFlashing = false;
+                                }, 100);
+                            }
+                        });
+                    }
+                } else {
+                    // Flash Red for Hit
+                    this.player.mesh.children.forEach(c => {
+                        if(c.material && !c.userData.isFlashing) {
+                            c.userData.isFlashing = true;
+                            const originalHex = c.material.color.getHex();
+                            c.material.color.set(0xff0000);
+                            setTimeout(() => {
+                                c.material.color.set(originalHex);
+                                c.userData.isFlashing = false;
+                            }, 100);
+                        }
+                    });
+                }
+
+                this.player.health -= finalAmt;
+                this.player.health = Math.max(0, this.player.health);
+                document.getElementById('hp-fill').style.width = this.player.health + '%';
+                
+                if (finalAmt > 0) {
+                    this.lastCombatTime = now;
+                    // Shake camera
+                    this.camera.position.x += (Math.random()-0.5) * 0.5;
+                }
+
+                if (this.player.health <= 0) {
+                    window.ui.showNotification("WASTED");
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+            }
         };
         this.buildPlayerModel();
         
@@ -313,31 +434,50 @@ class ConcreteReign {
     }
     
     buildPlayerModel() {
-        // Low Poly Black Male, Tanktop, Jeans, Buzzcut
+        // Higher detail Low Poly Model with joints
         const skinColor = 0x3d2314;
         const jeansColor = 0x111111;
         const tankColor = 0xffffff;
 
-        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.25), new THREE.MeshPhongMaterial({ color: tankColor })); // White Tank
+        // Torso
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.25), new THREE.MeshPhongMaterial({ color: tankColor }));
         torso.position.y = 1.2;
         
-        const pants = new THREE.Mesh(new THREE.BoxGeometry(0.51, 0.4, 0.26), new THREE.MeshPhongMaterial({ color: jeansColor }));
-        pants.position.y = 0.85;
-
+        // Head & Hair
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.3, 0.25), new THREE.MeshPhongMaterial({ color: skinColor }));
         head.position.y = 1.75;
-        
-        // Buzzcut
         const hair = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.26), new THREE.MeshPhongMaterial({ color: 0x000000 }));
         hair.position.y = 1.9;
 
-        const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.7, 0.12), new THREE.MeshPhongMaterial({ color: skinColor })); lArm.position.set(-0.35, 1.2, 0);
-        const rArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.7, 0.12), new THREE.MeshPhongMaterial({ color: skinColor })); rArm.position.set(0.35, 1.2, 0);
-        
-        const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.85, 0.2), new THREE.MeshPhongMaterial({ color: jeansColor })); lLeg.position.set(-0.15, 0.4, 0);
-        const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.85, 0.2), new THREE.MeshPhongMaterial({ color: jeansColor })); rLeg.position.set(0.15, 0.4, 0);
+        // Arms - Divided into Upper/Lower for better animation control
+        const armGeo = new THREE.BoxGeometry(0.12, 0.35, 0.12);
+        const lUpperArm = new THREE.Mesh(armGeo, new THREE.MeshPhongMaterial({ color: tankColor }));
+        const lLowerArm = new THREE.Mesh(armGeo, new THREE.MeshPhongMaterial({ color: skinColor }));
+        lUpperArm.position.set(-0.35, 1.35, 0);
+        lLowerArm.position.y = -0.35;
+        lUpperArm.add(lLowerArm);
 
-        this.player.mesh.add(torso, pants, head, hair, lArm, rArm, lLeg, rLeg);
+        const rUpperArm = new THREE.Mesh(armGeo, new THREE.MeshPhongMaterial({ color: tankColor }));
+        const rLowerArm = new THREE.Mesh(armGeo, new THREE.MeshPhongMaterial({ color: skinColor }));
+        rUpperArm.position.set(0.35, 1.35, 0);
+        rLowerArm.position.y = -0.35;
+        rUpperArm.add(rLowerArm);
+
+        // Legs
+        const legGeo = new THREE.BoxGeometry(0.2, 0.45, 0.2);
+        const lUpperLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({ color: jeansColor }));
+        const lLowerLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({ color: jeansColor }));
+        lUpperLeg.position.set(-0.15, 0.65, 0);
+        lLowerLeg.position.y = -0.45;
+        lUpperLeg.add(lLowerLeg);
+
+        const rUpperLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({ color: jeansColor }));
+        const rLowerLeg = new THREE.Mesh(legGeo, new THREE.MeshPhongMaterial({ color: jeansColor }));
+        rUpperLeg.position.set(0.15, 0.65, 0);
+        rLowerLeg.position.y = -0.45;
+        rUpperLeg.add(rLowerLeg);
+
+        this.player.mesh.add(torso, head, hair, lUpperArm, rUpperArm, lUpperLeg, rUpperLeg);
     }
     
     createCity() {
@@ -405,8 +545,17 @@ class ConcreteReign {
                 this.player.velocity.y = 0.3; // Jump Force
                 this.player.onGround = false;
             }
+            if (e.code === 'KeyF' && !this.player.isPunching) {
+                this.player.isBlocking = true;
+                this.player.lastBlockTime = Date.now();
+            }
         });
-        window.addEventListener('keyup', (e) => this.keys[e.code] = false);
+        window.addEventListener('keyup', (e) => {
+            this.keys[e.code] = false;
+            if (e.code === 'KeyF') {
+                this.player.isBlocking = false;
+            }
+        });
         window.addEventListener('mousedown', () => { 
             if (!this.isPaused) this.attack(); 
         });
@@ -426,7 +575,7 @@ class ConcreteReign {
     }
 
     attack() {
-        if(this.player.isPunching) return;
+        if(this.player.isPunching || this.player.isBlocking) return;
         
         this.player.isPunching = true;
         this.player.punchTime = Date.now();
@@ -482,20 +631,46 @@ class ConcreteReign {
         // PUNCH ANIMATION OVERRIDE
         if (this.player.isPunching) {
             const punchProgress = (Date.now() - this.player.punchTime) / 300; // 0 to 1
-            const armAngle = Math.sin(punchProgress * Math.PI) * -1.5; // Swing up and down
-            this.player.mesh.children[5].rotation.x = armAngle; // Right Arm Punch
-            this.player.mesh.children[4].rotation.x = 0; // Left Arm Idle
-        } 
-        else if (isMoving && this.player.onGround) {
-            const legSpeed = this.keys['ShiftLeft'] ? 10 : 5; // Slower, smoother
+            const armAngle = -Math.sin(punchProgress * Math.PI) * 1.5;
             
-            this.player.mesh.children[4].rotation.x = Math.sin(t * legSpeed) * 0.5;
+            // Right Upper Arm swings forward
+            this.player.mesh.children[4].rotation.x = armAngle;
+            // Right Lower Arm (forearm) extends out
+            this.player.mesh.children[4].children[0].rotation.x = Math.sin(punchProgress * Math.PI) * 0.8;
+            
+            // Counter balance with left arm
+            this.player.mesh.children[3].rotation.x = -armAngle * 0.2;
+        } 
+        else if (this.player.isBlocking) {
+            // Block Pose (Arms up in front)
+            this.player.mesh.children[3].rotation.x = -1.2;
+            this.player.mesh.children[3].children[0].rotation.x = -0.5;
+            this.player.mesh.children[4].rotation.x = -1.2;
+            this.player.mesh.children[4].children[0].rotation.x = -0.5;
+        }
+        else if (isMoving && this.player.onGround) {
+            const legSpeed = this.keys['ShiftLeft'] ? 10 : 5;
+            
+            // Upper parts swing
+            this.player.mesh.children[3].rotation.x = Math.sin(t * legSpeed) * 0.5;
+            this.player.mesh.children[4].rotation.x = -Math.sin(t * legSpeed) * 0.5;
             this.player.mesh.children[5].rotation.x = -Math.sin(t * legSpeed) * 0.5;
-            this.player.mesh.children[6].rotation.x = -Math.sin(t * legSpeed) * 0.5;
-            this.player.mesh.children[7].rotation.x = Math.sin(t * legSpeed) * 0.5;
+            this.player.mesh.children[6].rotation.x = Math.sin(t * legSpeed) * 0.5;
+            
+            // Add some lower part movement for fluidness
+            this.player.mesh.children[3].children[0].rotation.x = -Math.abs(Math.sin(t * legSpeed)) * 0.3;
+            this.player.mesh.children[4].children[0].rotation.x = -Math.abs(Math.sin(t * legSpeed)) * 0.3;
+            this.player.mesh.children[5].children[0].rotation.x = Math.abs(Math.sin(t * legSpeed)) * 0.5;
+            this.player.mesh.children[6].children[0].rotation.x = Math.abs(Math.sin(t * legSpeed)) * 0.5;
         } else {
             // Idle/Jump Pose
-            for(let i=4; i<8; i++) this.player.mesh.children[i].rotation.x = 0;
+            for(let i=3; i<7; i++) {
+                this.player.mesh.children[i].rotation.x = 0;
+                this.player.mesh.children[i].rotation.y = 0;
+                if(this.player.mesh.children[i].children[0]) {
+                    this.player.mesh.children[i].children[0].rotation.x = 0;
+                }
+            }
         }
 
         // --- Physics & Movement ---
