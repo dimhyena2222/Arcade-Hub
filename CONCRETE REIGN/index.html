@@ -31,6 +31,7 @@
         </div>
 
         <div class="hud-top-right">
+            <div id="cash-display" style="color: #00ff00; font-size: 1.5rem; text-shadow: 2px 2px #000;">$0</div>
             <div id="chaos-score">CHAOS: 000000</div>
             <div id="rank-display">RANK: OUTSIDER</div>
         </div>
@@ -47,10 +48,6 @@
                     <div id="hp-fill" class="fill"></div>
                     <span class="label">HEALTH</span>
                 </div>
-                <div class="bar-container stamina">
-                    <div id="stamina-fill" class="fill"></div>
-                    <span class="label">STAMINA</span>
-                </div>
                 <div class="bar-container dash">
                     <div id="dash-fill" class="fill"></div>
                     <span class="label">DASH</span>
@@ -60,6 +57,17 @@
         
         <!-- Crosshair -->
         <div id="crosshair"></div>
+    </div>
+
+    <!-- Shop Screen -->
+    <div id="shop-screen" class="overlay hidden">
+        <div class="menu-content wide">
+            <h2>DOCKSIDE DRAPES - ARMS DEALER</h2>
+            <div id="shop-items" class="menu-list">
+                <!-- Items injected here -->
+            </div>
+            <button class="menu-btn" onclick="ui.hideScreens()">LEAVE</button>
+        </div>
     </div>
 
     <!-- Menus -->
@@ -101,8 +109,11 @@
     <div id="map-screen" class="overlay hidden">
         <div class="menu-content">
             <h2>RAVENPORT CITY MAP</h2>
-            <div style="border: 2px solid var(--primary); height: 300px; display: flex; align-items: center; justify-content: center; background: #111; margin-bottom: 20px;">
-                [ MAP DATA OFFLINE ]
+            <div style="border: 2px solid var(--primary); height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #111; margin-bottom: 20px; font-family: 'Oswald', sans-serif;">
+                <div style="color: var(--primary); font-size: 1.2rem; margin-bottom: 10px;">KEY LOCATIONS:</div>
+                <div style="color: #00ff00;">● DOCKSIDE DRAPES (ARMS DEALER)</div>
+                <div style="color: #ffff00; margin-top: 5px;">★ ACTIVE MISSION</div>
+                <div style="color: #666; font-size: 0.8rem; margin-top: 20px;">[ GPS SIGNAL ACQUIRED ]</div>
             </div>
             <button class="menu-btn" onclick="ui.hideScreens()">BACK</button>
         </div>
