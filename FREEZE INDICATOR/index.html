@@ -122,10 +122,24 @@
             transition: width 0.1s linear;
         }
 
+        #heat-bar {
+            height: 100%;
+            width: 100%;
+            background: #ff4400;
+            transition: width 0.1s linear;
+        }
+
         #dash-bar {
             height: 100%;
             width: 100%;
             background: #ffaa00;
+            transition: width 0.1s linear;
+        }
+
+        #parry-bar {
+            height: 100%;
+            width: 100%;
+            background: #a200ff;
             transition: width 0.1s linear;
         }
 
@@ -153,6 +167,28 @@
 
         .hidden { display: none !important; }
 
+        .system-warning {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Press Start 2P', cursive;
+            font-size: 1.5rem;
+            color: var(--danger-red);
+            text-shadow: 0 0 20px var(--danger-red);
+            z-index: 100;
+            pointer-events: none;
+            text-align: center;
+            width: 100%;
+            animation: warningFade 2.5s forwards;
+        }
+
+        @keyframes warningFade {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1.5); }
+            10% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+
         #final-score {
             font-family: 'Press Start 2P', cursive;
             color: var(--danger-red);
@@ -169,15 +205,23 @@
             
             <div style="display: flex; justify-content: space-around; padding: 10px;">
                 <div>
-                    <div class="meter-label">FREEZE LEVEL</div>
+                    <div class="meter-label">OVERHEAT (SHATTER)</div>
                     <div class="meter-container">
                         <div id="freeze-bar"></div>
+                    </div>
+                    <div class="meter-label">CORE HEAT (FREEZE)</div>
+                    <div class="meter-container">
+                        <div id="heat-bar"></div>
                     </div>
                 </div>
                 <div>
                     <div class="meter-label">DASH CHARGE</div>
                     <div class="meter-container">
                         <div id="dash-bar"></div>
+                    </div>
+                    <div class="meter-label">PARRY CHARGE</div>
+                    <div class="meter-container">
+                        <div id="parry-bar"></div>
                     </div>
                 </div>
             </div>
@@ -210,11 +254,11 @@
             <h1>INSTRUCTIONS</h1>
             <div id="how-to-play">
                 <p>WASD TO MOVE THE OPERATOR.</p>
-                <p style="color: var(--ice-blue)">MOTION HEATS UP YOUR CORE.</p>
-                <p>STILLNESS COOLS YOU DOWN.</p>
+                <p style="color: #ffaa00">HEAT: KEEP ABOVE 0% (MOVE TO GENERATE HEAT).</p>
+                <p style="color: var(--ice-blue)">OVERHEAT: KEEP BELOW 100% (STILLNESS COOLS YOU).</p>
+                <p>STRIKE A BALANCE TO SURVIVE.</p>
                 <p style="color: #ffaa00">SHIFT + WASD TO DASH (10S COOLDOWN).</p>
                 <p>DASH PROVIDES 1.5S IMMUNITY.</p>
-                <p style="color: var(--danger-red)">IF THE FREEZE BAR FILLS, YOU FAIL.</p>
             </div>
             <button class="btn" onclick="showScreen('menu-screen')">BACK TO TERMINAL</button>
         </div>
@@ -233,7 +277,9 @@
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score-display');
         const freezeBar = document.getElementById('freeze-bar');
+        const heatBar = document.getElementById('heat-bar');
         const dashBar = document.getElementById('dash-bar');
+        const parryBar = document.getElementById('parry-bar');
         const levelEl = document.getElementById('difficulty-level');
         const ui = document.getElementById('game-ui');
 
@@ -244,15 +290,20 @@
             speed: 5,
             isImmune: false,
             dashCharge: 100,
-            isDashing: false
+            isDashing: false,
+            parryCharge: 100,
+            isParrying: false
         };
         
         let obstacles = [];
+        let blasters = [];
         let score = 0;
         let freezeLevel = 0;
+        let heatLevel = 100;
         let gameActive = false;
         let milestone = 10;
         let level = 1;
+        let gameStartTime = 0;
         
         const keys = {};
 
@@ -282,11 +333,32 @@
             if (id === 'leaderboard-screen') updateLeaderboard();
         }
 
+        function showWarning(lvl) {
+            const warning = document.createElement('div');
+            warning.className = 'system-warning';
+            warning.textContent = `SYSTEM STATUS: LEVEL ${lvl}`;
+            document.getElementById('game-container').appendChild(warning);
+            setTimeout(() => warning.remove(), 2500);
+        }
+
         window.addEventListener('keydown', (e) => {
             keys[e.code] = true;
             if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') handleDash();
         });
         window.addEventListener('keyup', (e) => keys[e.code] = false);
+        window.addEventListener('mousedown', (e) => handleParry());
+
+        function handleParry() {
+            if (!gameActive || player.parryCharge < 100 || player.isParrying) return;
+
+            player.isParrying = true;
+            player.parryCharge = 0;
+
+            // Simple visual for parry
+            setTimeout(() => {
+                player.isParrying = false;
+            }, 400); // Parry window duration: 0.4s
+        }
 
         function handleDash() {
             if (!gameActive || player.dashCharge < 100 || player.isDashing) return;
@@ -339,6 +411,49 @@
             setTimeout(spawnObstacle, spawnRate);
         }
 
+        function spawnBlaster() {
+            if (!gameActive) return;
+            if (level < 4) {
+                setTimeout(spawnBlaster, 3000);
+                return;
+            }
+
+            const side = Math.floor(Math.random() * 4);
+            let startX, startY, targetX, targetY;
+            const borderPad = 40;
+
+            if (side === 0) { // Top
+                startX = Math.random() * 800; startY = -60;
+                targetX = startX; targetY = borderPad;
+            } else if (side === 1) { // Bottom
+                startX = Math.random() * 800; startY = 660;
+                targetX = startX; targetY = 600 - borderPad;
+            } else if (side === 2) { // Left
+                startX = -60; startY = Math.random() * 600;
+                targetX = borderPad; targetY = startY;
+            } else { // Right
+                startX = 860; startY = Math.random() * 600;
+                targetX = 800 - borderPad; targetY = startY;
+            }
+
+            const angle = Math.atan2(player.y - targetY, player.x - targetX);
+            
+            blasters.push({
+                x: startX, y: startY, 
+                startX, startY,
+                targetX, targetY,
+                angle,
+                startTime: Date.now(),
+                warmTime: 1200,
+                fireTime: 800,
+                fadeTime: 600,
+                phase: 'warming'
+            });
+
+            const nextSpawn = Math.max(1200, 4500 - level * 400);
+            setTimeout(spawnBlaster, nextSpawn);
+        }
+
         function startGame() {
             document.querySelectorAll('.overlay-screen').forEach(s => s.classList.add('hidden'));
             canvas.style.display = 'block';
@@ -346,6 +461,7 @@
             gameActive = true;
             score = 0;
             freezeLevel = 0;
+            heatLevel = 100;
             level = 1;
             milestone = 10;
             obstacles = [];
@@ -353,7 +469,10 @@
             player.y = 300;
             player.dashCharge = 100;
             player.isImmune = false;
+            gameStartTime = Date.now();
+            blasters = [];
             spawnObstacle();
+            spawnBlaster();
             gameLoop();
         }
 
@@ -380,8 +499,10 @@
                 player.y = Math.max(player.radius, Math.min(600 - player.radius, player.y));
                 
                 freezeLevel = Math.min(100, freezeLevel + 0.5);
+                heatLevel = Math.min(100, heatLevel + 0.3);
             } else {
                 freezeLevel = Math.max(0, freezeLevel - 0.8);
+                heatLevel = Math.max(0, heatLevel - 0.2);
             }
 
             // Dash Recharge (10 seconds to full)
@@ -391,16 +512,30 @@
             dashBar.style.width = player.dashCharge + '%';
             dashBar.style.backgroundColor = player.dashCharge >= 100 ? '#ffaa00' : '#555';
 
-            freezeBar.style.width = freezeLevel + '%';
-            if (freezeLevel >= 100) return gameOver("FROZEN SOLID");
+            // Parry Recharge (4 seconds to full)
+            if (player.parryCharge < 100) {
+                player.parryCharge += (100 / (4 * 60)); // 100% over 4s at 60fps
+            }
+            parryBar.style.width = player.parryCharge + '%';
+            parryBar.style.backgroundColor = player.parryCharge >= 100 ? '#a200ff' : '#555';
 
-            // Difficulty Milestone Logic
+            freezeBar.style.width = freezeLevel + '%';
+            heatBar.style.width = heatLevel + '%';
+            
+            if (freezeLevel >= 100) return gameOver("CORE OVERHEATED");
+            if (heatLevel <= 0) return gameOver("FROZEN SOLID");
+
+            // Update Score & Milestone Logic
+            score = (Date.now() - gameStartTime) / 1000;
+            scoreEl.textContent = `SURVIVAL: ${Math.floor(score)}s`;
+
             if (score >= milestone) {
                 level++;
                 milestone += 15;
                 levelEl.textContent = `LEVEL ${level}`;
                 levelEl.style.color = '#ff0055';
                 setTimeout(() => levelEl.style.color = '#00f2ff', 500);
+                showWarning(level);
             }
 
             // Update Obstacles
@@ -409,18 +544,166 @@
                 obs.y += obs.vy;
 
                 const dist = Math.hypot(player.x - obs.x, player.y - obs.y);
-                if (!player.isImmune && dist < player.radius + obs.size) return gameOver("SHATTERED");
+                const parryThreshold = player.radius + obs.size + 10;
+
+                if (player.isParrying && dist < parryThreshold) {
+                    obs.vx = -obs.vx;
+                    obs.vy = -obs.vy;
+                    obs.x += obs.vx * 2; // Nudge it away
+                    obs.y += obs.vy * 2;
+                } else if (!player.isImmune && dist < player.radius + obs.size) {
+                    return gameOver("SHATTERED");
+                }
 
                 if (obs.x < -200 || obs.x > 1000 || obs.y < -200 || obs.y > 800) {
                     obstacles.splice(i, 1);
                 }
             });
 
-            score += 1/60;
-            scoreEl.textContent = `SURVIVAL: ${Math.floor(score)}s`;
+            // Update Blasters
+            const now = Date.now();
+            blasters.forEach((b, i) => {
+                const elapsed = now - b.startTime;
+                if (elapsed < b.warmTime) {
+                    b.phase = 'warming';
+                    // Slide forward animation (ease out cubic)
+                    const t = elapsed / b.warmTime;
+                    const ease = 1 - Math.pow(1 - t, 3);
+                    b.x = b.startX + (b.targetX - b.startX) * ease;
+                    b.y = b.startY + (b.targetY - b.startY) * ease;
+                    // Track player position during first 60% of warm-up
+                    if (elapsed < b.warmTime * 0.6) {
+                        b.angle = Math.atan2(player.y - b.y, player.x - b.x);
+                    }
+                } else if (elapsed < b.warmTime + b.fireTime) {
+                    b.phase = 'firing';
+                    b.x = b.targetX;
+                    b.y = b.targetY;
+                    // Collision
+                    if (!player.isImmune) {
+                        const dx = player.x - b.x;
+                        const dy = player.y - b.y;
+                        const distToBeam = Math.abs(Math.sin(b.angle) * dx - Math.cos(b.angle) * dy);
+                        const dotProduct = Math.cos(b.angle) * dx + Math.sin(b.angle) * dy;
+                        
+                        if (distToBeam < player.radius + 30 && dotProduct > 0) {
+                            if (player.isParrying) {
+                                // Successfully parried the beam (no death)
+                            } else {
+                                return gameOver("OBLITERATED");
+                            }
+                        }
+                    }
+                } else if (elapsed < b.warmTime + b.fireTime + b.fadeTime) {
+                    b.phase = 'fading';
+                } else {
+                    blasters.splice(i, 1);
+                }
+            });
 
             // Draw
             ctx.clearRect(0, 0, 800, 600);
+
+            // Draw Blasters
+            blasters.forEach(b => {
+                const elapsed = now - b.startTime;
+                const alpha = b.phase === 'fading' ? 1 - (elapsed - b.warmTime - b.fireTime) / b.fadeTime : 1;
+                const scale = b.phase === 'warming' ? 0.5 + (0.5 * (elapsed / b.warmTime)) : (b.phase === 'fading' ? alpha : 1);
+                
+                // Beam Drawing
+                if (b.phase === 'warming') {
+                    ctx.save();
+                    ctx.globalAlpha = 0.3 * (elapsed / b.warmTime);
+                    ctx.strokeStyle = 'rgba(255,0,0,0.8)';
+                    ctx.setLineDash([10, 5]);
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(b.x, b.y);
+                    ctx.lineTo(b.x + Math.cos(b.angle) * 1500, b.y + Math.sin(b.angle) * 1500);
+                    ctx.stroke();
+                    ctx.restore();
+                } else if (b.phase === 'firing') {
+                    const beamWidth = 70;
+                    ctx.save();
+                    ctx.shadowBlur = 30;
+                    ctx.shadowColor = '#00f2ff';
+                    const grad = ctx.createLinearGradient(b.x, b.y, b.targetX + Math.cos(b.angle) * 100, b.targetY + Math.sin(b.angle) * 100);
+                    grad.addColorStop(0, '#fff');
+                    grad.addColorStop(1, '#00f2ff');
+                    ctx.strokeStyle = grad;
+                    ctx.lineWidth = beamWidth;
+                    ctx.beginPath();
+                    ctx.moveTo(b.x, b.y);
+                    ctx.lineTo(b.x + Math.cos(b.angle) * 1500, b.y + Math.sin(b.angle) * 1500);
+                    ctx.stroke();
+                    ctx.restore();
+                } else if (b.phase === 'fading') {
+                    ctx.save();
+                    ctx.strokeStyle = `rgba(0, 242, 255, ${alpha})`;
+                    ctx.lineWidth = 70 * alpha;
+                    ctx.beginPath();
+                    ctx.moveTo(b.x, b.y);
+                    ctx.lineTo(b.x + Math.cos(b.angle) * 1500, b.y + Math.sin(b.angle) * 1500);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // Blaster Head Drawing (Undertale-inspired Skull)
+                ctx.save();
+                ctx.translate(b.x, b.y);
+                ctx.rotate(b.angle);
+                ctx.scale(scale, scale);
+                ctx.globalAlpha = alpha;
+
+                ctx.fillStyle = '#fff';
+                ctx.strokeStyle = '#00f2ff';
+                ctx.lineWidth = 2;
+
+                const openMouth = b.phase === 'firing' ? 15 : 0;
+
+                // Top Skull
+                ctx.beginPath();
+                ctx.moveTo(35, -5); // Nose tip
+                ctx.quadraticCurveTo(30, -25, 10, -30); // Top forehead
+                ctx.quadraticCurveTo(-20, -35, -30, -10); // Back of head
+                ctx.lineTo(-30, 10);
+                ctx.quadraticCurveTo(-20, 35, 10, 30); // Bottom forehead
+                ctx.quadraticCurveTo(30, 25, 35, 5); // Bottom nose tip
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Snout/Jaw (Lower)
+                ctx.save();
+                ctx.translate(0, openMouth);
+                ctx.beginPath();
+                ctx.moveTo(25, 5);
+                ctx.lineTo(45, 5); // Lower jaw extension
+                ctx.lineTo(35, 15);
+                ctx.lineTo(10, 20);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+
+                // Eyes
+                ctx.fillStyle = b.phase === 'warming' ? `rgb(${Math.floor(255 * (elapsed/b.warmTime))}, 0, 0)` : '#f00';
+                ctx.shadowBlur = b.phase === 'firing' ? 10 : 0;
+                ctx.shadowColor = '#f00';
+                ctx.beginPath();
+                ctx.ellipse(5, -12, 6, 8, Math.PI/4, 0, Math.PI*2);
+                ctx.ellipse(5, 12, 6, 8, -Math.PI/4, 0, Math.PI*2);
+                ctx.fill();
+
+                // Decorative cracks/lines
+                ctx.strokeStyle = '#00f2ff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-10, -15); ctx.lineTo(-20, -25);
+                ctx.stroke();
+
+                ctx.restore();
+            });
 
             // Draw Shards
             obstacles.forEach(obs => {
@@ -437,13 +720,25 @@
             });
 
             // Draw Player
-            const iceFactor = freezeLevel / 100;
-            ctx.fillStyle = player.isImmune ? '#ffaa00' : `rgb(${255 * (1-iceFactor)}, ${242 * iceFactor}, 255)`;
+            const h = heatLevel / 100;
+            ctx.fillStyle = player.isImmune ? '#ffaa00' : `rgb(${255 * h}, ${242 * (1-h)}, 255 * (1-h))`;
             ctx.shadowBlur = player.isImmune ? 30 : 15;
             ctx.shadowColor = ctx.fillStyle;
             ctx.beginPath();
             ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Parry Visual
+            if (player.isParrying) {
+                ctx.strokeStyle = '#a200ff';
+                ctx.lineWidth = 4;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#a200ff';
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, player.radius + 8, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
             
             // Immunity Ring
             if (player.isImmune) {
