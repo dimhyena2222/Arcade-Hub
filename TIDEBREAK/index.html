@@ -107,23 +107,14 @@
     <!-- Map Canvas -->
     <canvas id="overworld-canvas"></canvas>
 
+    <!-- Battle Status Messages -->
+    <div id="battle-status-area" class="battle-status-area"></div>
+
     <!-- HUD -->
     <div class="hud">
         <div class="hud-top-left">
             <div class="location-tag" id="hud-location">BRINEFALL VILLAGE</div>
             <div class="weather-tag" id="hud-weather">☀ CLEAR SKIES</div>
-        </div>
-        <div class="hud-top-right">
-            <div class="faction-meters">
-                <div class="faction-row">
-                    <span class="faction-name abyss">ABYSSAL</span>
-                    <div class="faction-bar"><div class="faction-fill abyss-fill" id="rep-abyss" style="width:0%"></div></div>
-                </div>
-                <div class="faction-row">
-                    <span class="faction-name solt">SOLTERRA</span>
-                    <div class="faction-bar"><div class="faction-fill solt-fill" id="rep-solt" style="width:0%"></div></div>
-                </div>
-            </div>
         </div>
         <div class="hud-bottom">
             <div class="party-strip" id="party-strip"></div>
@@ -134,17 +125,23 @@
     <div id="overworld-dlg" class="overworld-dialogue hidden">
         <div class="dialogue-speaker" id="ow-dlg-speaker"></div>
         <div class="dialogue-text" id="ow-dlg-text"></div>
-        <div class="dialogue-hint">▼ Press Z to continue</div>
+        <div class="dialogue-hint">▼ Click or Z to continue</div>
     </div>
 
-    <!-- Action Menu -->
+    <!-- Action Menu (Escape Menu) -->
     <div id="action-menu" class="action-menu hidden">
-        <button onclick="Game.openMenu('team')">🌊 TEAM</button>
-        <button onclick="Game.openMenu('codex')">📖 CODEX</button>
-        <button onclick="Game.openMenu('map')">🗺 MAP</button>
-        <button onclick="Game.openMenu('factions')">⚖ FACTIONS</button>
-        <button onclick="Game.openMenu('options')">⚙ OPTIONS</button>
+        <div class="action-menu-title">MENU</div>
+        <button onclick="Game.openMenu('team'); Game.playSound('select')">🌊 TEAM</button>
+        <button onclick="Game.openMenu('codex'); Game.playSound('select')">📖 CODEX</button>
+        <button onclick="Game.openMenu('map'); Game.playSound('select')">🗺 MAP</button>
+        <button onclick="Game.openMenu('options'); Game.playSound('select')">⚙ OPTIONS</button>
+        <button class="action-menu-close" onclick="Game.closeEscapeMenu(); Game.playSound('back')">✕ CLOSE</button>
     </div>
+</div>
+
+<!-- CREATURE DETAIL OVERLAY -->
+<div id="screen-creature-detail" class="screen overlay-screen">
+    <div class="creature-detail-container" id="creature-detail-content"></div>
 </div>
 
 <!-- BATTLE SCREEN -->
@@ -162,12 +159,12 @@
                 <div class="hp-bar"><div class="hp-fill enemy-hp" id="enemy-hp-fill"></div></div>
             </div>
         </div>
-        <div class="battle-sprite enemy-sprite" id="enemy-sprite-el"></div>
+        <canvas class="battle-sprite enemy-sprite" id="enemy-sprite-el" width="120" height="120"></canvas>
     </div>
 
     <!-- Player Side -->
     <div class="battle-player-area">
-        <div class="battle-sprite player-sprite" id="player-sprite-el"></div>
+        <canvas class="battle-sprite player-sprite" id="player-sprite-el" width="120" height="120"></canvas>
         <div class="battle-info player-info">
             <div class="battle-name" id="player-creature-name">---</div>
             <div class="type-row" id="player-types"></div>
@@ -182,12 +179,13 @@
         </div>
     </div>
 
-    <!-- Battle Log -->
-    <div class="battle-bottom">
-        <div class="battle-log" id="battle-log"></div>
+    <!-- Battle Status Messages -->
+    <div id="battle-status-log" class="battle-status-log"></div>
 
+    <!-- Battle Bottom -->
+    <div class="battle-bottom">
         <!-- Move Panel -->
-        <div class="move-panel" id="move-panel">
+        <div class="move-panel" id="move-panel" style="display:none">
             <div class="move-grid" id="move-grid"></div>
             <div class="move-info-box">
                 <div id="move-desc">Select a move...</div>
@@ -197,10 +195,10 @@
 
         <!-- Action Panel -->
         <div class="action-panel" id="action-panel">
-            <button class="battle-btn" onclick="Game.battle.showMoves()">⚔ CHANNEL</button>
-            <button class="battle-btn" onclick="Game.battle.openSwitch()">🔄 SWITCH</button>
-            <button class="battle-btn" onclick="Game.battle.tryCatch()">🔮 CAPTURE</button>
-            <button class="battle-btn" onclick="Game.battle.runAway()">💨 RETREAT</button>
+            <button class="battle-btn" onclick="Game.battle.showMoves(); Game.playSound('select')">⚔ CHANNEL</button>
+            <button class="battle-btn" onclick="Game.battle.openSwitch(); Game.playSound('select')">🔄 SWITCH</button>
+            <button class="battle-btn" onclick="Game.battle.tryCatch(); Game.playSound('select')">🔮 CAPTURE</button>
+            <button class="battle-btn" onclick="Game.battle.runAway(); Game.playSound('select')">💨 RETREAT</button>
         </div>
     </div>
 
@@ -230,7 +228,7 @@
                 <div class="island-label">Sky Spire<br><small>ACT 3</small></div>
             </div>
         </div>
-        <button class="btn-secondary close-btn" onclick="Game.closeOverlay()">✕ CLOSE</button>
+        <button class="btn-secondary close-btn" onclick="Game.closeOverlay(); Game.playSound('back')">✕ CLOSE</button>
     </div>
 </div>
 
@@ -239,7 +237,7 @@
     <div class="codex-container">
         <h2 class="map-title">CODEX: KNOWN CREATURES</h2>
         <div class="codex-grid" id="codex-grid"></div>
-        <button class="btn-secondary close-btn" onclick="Game.closeOverlay()">✕ CLOSE</button>
+        <button class="btn-secondary close-btn" onclick="Game.closeOverlay(); Game.playSound('back')">✕ CLOSE</button>
     </div>
 </div>
 
@@ -248,7 +246,37 @@
     <div class="team-container">
         <h2 class="map-title">YOUR PARTY</h2>
         <div class="team-list" id="team-list"></div>
-        <button class="btn-secondary close-btn" onclick="Game.closeOverlay()">✕ CLOSE</button>
+        <button class="btn-secondary close-btn" onclick="Game.closeOverlay(); Game.playSound('back')">✕ CLOSE</button>
+    </div>
+</div>
+
+<!-- OPTIONS OVERLAY -->
+<div id="screen-options" class="screen overlay-screen">
+    <div class="options-container">
+        <h2 class="map-title">⚙ OPTIONS</h2>
+        <div class="options-list" id="options-list">
+            <div class="option-row">
+                <span class="option-label">Sound Effects</span>
+                <button class="option-toggle" id="opt-sound" onclick="Game.toggleOption('sound')">ON</button>
+            </div>
+            <div class="option-row">
+                <span class="option-label">Encounter Rate</span>
+                <button class="option-toggle" id="opt-encounter" onclick="Game.cycleOption('encounter')">NORMAL</button>
+            </div>
+            <div class="option-row">
+                <span class="option-label">Battle Speed</span>
+                <button class="option-toggle" id="opt-speed" onclick="Game.cycleOption('speed')">NORMAL</button>
+            </div>
+            <div class="option-row">
+                <span class="option-label">Text Speed</span>
+                <button class="option-toggle" id="opt-textspeed" onclick="Game.cycleOption('textspeed')">NORMAL</button>
+            </div>
+            <div class="option-row">
+                <span class="option-label">Weather Events</span>
+                <button class="option-toggle" id="opt-weather" onclick="Game.toggleOption('weather')">ON</button>
+            </div>
+        </div>
+        <button class="btn-secondary close-btn" onclick="Game.closeOverlay(); Game.playSound('back')">✕ CLOSE</button>
     </div>
 </div>
 
@@ -260,15 +288,11 @@
             <h3>THE AURELIOS ARCHIPELAGO</h3>
             <p>A vast chain of tropical islands held together not by land bridges but by invisible threads of energy known as <em>Aether Currents</em> — ancient flows that regulate climate, tidal rhythms, and the migration of mythic creatures.</p>
             <h3>THE THREE TITANS</h3>
-            <p><strong class="abyss-text">LEVIATYR</strong> — The Sea Colossus. Ancient sovereign of tectonic tides, sleeping beneath the Abyssal Trench. The Abyssal Dominion seeks to awaken it.</p>
-            <p><strong class="ember-text">PYRODRAKON</strong> — The Magma Titan. Shaper of continents, locked in volcanic stasis beneath Cindercrag. The Solterra Accord seeks to awaken it.</p>
-            <p><strong class="gale-text">TEMPESTARA</strong> — The Storm Sovereign. A sky serpent of immense proportion. Cannot be controlled. Appears only when the balance breaks catastrophically. It is the failsafe of the world itself.</p>
-            <h3>THE FACTIONS</h3>
-            <p><strong class="abyss-text">ABYSSAL DOMINION</strong> — Eco-extremists who believe civilization has permanently scarred the land. Their solution: return everything to the ocean.</p>
-            <p><strong class="ember-text">SOLTERRA ACCORD</strong> — Techno-dominators who believe humanity must master nature, not serve it. Their solution: geothermal expansion at any cost.</p>
-            <p>Both are wrong. Both believe they are right. You are neither.</p>
+            <p><strong class="abyss-text">LEVIATYR</strong> — The Sea Colossus. Ancient sovereign of tectonic tides, sleeping beneath the Abyssal Trench.</p>
+            <p><strong class="ember-text">PYRODRAKON</strong> — The Magma Titan. Shaper of continents, locked in volcanic stasis beneath Cindercrag.</p>
+            <p><strong class="gale-text">TEMPESTARA</strong> — The Storm Sovereign. A sky serpent of immense proportion. It is the failsafe of the world itself.</p>
         </div>
-        <button class="btn-secondary close-btn" onclick="Game.showScreen('screen-title')">← RETURN</button>
+        <button class="btn-secondary close-btn" onclick="Game.showScreen('screen-title'); Game.playSound('back')">← RETURN</button>
     </div>
 </div>
 
@@ -280,6 +304,9 @@
     <div class="climate-icon" id="climate-icon"></div>
     <div class="climate-text" id="climate-text"></div>
 </div>
+
+<!-- SCREEN TRANSITION OVERLAY -->
+<div id="screen-transition" class="screen-transition"></div>
 
 <script src="js/data.js"></script>
 <script src="js/battle.js"></script>

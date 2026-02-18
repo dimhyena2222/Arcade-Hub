@@ -1,5 +1,5 @@
-// ============================================================
-//  TIDEBREAK: Legacy of the Storms — BATTLE.JS
+﻿// ============================================================
+//  TIDEBREAK: Legacy of the Storms â€” BATTLE.JS
 //  Turn-based battle engine, damage calc, weather, capture
 // ============================================================
 
@@ -7,21 +7,20 @@
 
 const BattleEngine = (() => {
 
-    // ── STATE ──────────────────────────────────────────────────
+    // â”€â”€ STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let state = {
         active: false,
-        playerCreature: null,   // live creature instance
-        enemyCreature: null,    // live creature instance
+        playerCreature: null,
+        enemyCreature: null,
         weather: 'CLEAR',
-        turnPhase: 'action',    // 'action' | 'move-select' | 'switch' | 'animating' | 'end'
+        turnPhase: 'action',    // 'action' | 'move-select' | 'animating' | 'end'
         wildBattle: true,
         canRun: true,
         pendingPlayerMove: null,
-        logQueue: [],
-        onBattleEnd: null,      // callback(result) — result: 'win'|'lose'|'run'|'capture'
+        onBattleEnd: null,
     };
 
-    // ── STAT STAGE MULTIPLIERS ──────────────────────────────────
+    // â”€â”€ STAT STAGE MULTIPLIERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const STAGE_MULT = {
         '-3': 0.50, '-2': 0.60, '-1': 0.75,
         '0': 1.00,
@@ -29,136 +28,134 @@ const BattleEngine = (() => {
     };
 
     function getStageMult(stages) {
-        const clamped = Math.max(-3, Math.min(3, stages));
-        return STAGE_MULT[String(clamped)];
+        return STAGE_MULT[String(Math.max(-3, Math.min(3, stages)))];
     }
 
-    // ── DAMAGE FORMULA ──────────────────────────────────────────
+    // â”€â”€ DAMAGE FORMULA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function calcDamage(attacker, defender, move, weather) {
-        if (!move.power || move.power === 0) return 0;
+        if (!move.power || move.power === 0) return { damage: 0, effectiveness: 1 };
 
-        const atk = Math.floor(attacker.stats.atk * getStageMult(attacker.statStages.atk));
-        const def = Math.max(1, Math.floor(defender.stats.def * getStageMult(defender.statStages.def)));
+        const atk = Math.floor(attacker.stats.atk * getStageMult(attacker.statStages?.atk || 0));
+        const def = Math.max(1, Math.floor(defender.stats.def * getStageMult(defender.statStages?.def || 0)));
 
-        // Base damage: (ATK / DEF) * Power * 0.4 + small random variance
         let dmg = Math.floor((atk / def) * move.power * 0.4);
 
-        // Type effectiveness (multi-type defender: multiply all)
         let effectiveness = 1;
         for (const defType of defender.types) {
             const row = TYPE_CHART[move.type];
-            if (row && row[defType] !== undefined) {
-                effectiveness *= row[defType];
-            }
+            if (row && row[defType] !== undefined) effectiveness *= row[defType];
         }
         dmg = Math.floor(dmg * effectiveness);
 
-        // STAB (Same-Type Attack Bonus)
-        if (attacker.types.includes(move.type)) {
-            dmg = Math.floor(dmg * 1.5);
-        }
+        if (attacker.types.includes(move.type)) dmg = Math.floor(dmg * 1.5);
 
-        // Weather bonus/penalty
         const wDef = WEATHER[weather];
         if (wDef) {
-            if (wDef.typeBonus === move.type)    dmg = Math.floor(dmg * 1.5);
-            if (wDef.typePenalty === move.type)  dmg = Math.floor(dmg * 0.67);
+            if (wDef.typeBonus === move.type)   dmg = Math.floor(dmg * 1.5);
+            if (wDef.typePenalty === move.type) dmg = Math.floor(dmg * 0.67);
         }
 
-        // Random variance ±10%
         const variance = 0.9 + Math.random() * 0.2;
         dmg = Math.max(1, Math.floor(dmg * variance));
 
         return { damage: dmg, effectiveness };
     }
 
-    // ── EFFECTIVENESS MESSAGE ────────────────────────────────────
     function effectivenessMsg(eff) {
-        if (eff === 0)    return "It has no effect!";
-        if (eff >= 2)     return "It's super effective!";
-        if (eff <= 0.5)   return "It's not very effective...";
+        if (eff === 0)  return "It has no effect!";
+        if (eff >= 2)   return "Super effective!";
+        if (eff <= 0.5) return "Not very effective...";
         return null;
     }
 
-    // ── APPLY STAT STAGE EFFECT ──────────────────────────────────
+    // â”€â”€ APPLY STAT EFFECT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function applyEffect(creature, effect, creatureName) {
         if (!effect) return;
-
         if (effect.stat && effect.target) {
             const chance = effect.chance !== undefined ? effect.chance : 1;
             if (Math.random() <= chance) {
+                creature.statStages = creature.statStages || {};
                 creature.statStages[effect.stat] = Math.max(-3, Math.min(3,
                     (creature.statStages[effect.stat] || 0) + effect.stages));
                 const dir = effect.stages > 0 ? 'rose' : 'fell';
-                appendLog(`${creatureName}'s ${effect.stat.toUpperCase()} ${dir}!`);
+                statusMsg(`${creatureName}'s ${effect.stat.toUpperCase()} ${dir}!`);
             }
         }
-
         if (effect.heal) {
             const healAmt = Math.floor(creature.stats.maxVit * effect.heal);
             creature.stats.vit = Math.min(creature.stats.maxVit, creature.stats.vit + healAmt);
-            appendLog(`${creatureName} restored ${healAmt} VIT!`);
+            statusMsg(`${creatureName} restored ${healAmt} VIT!`);
         }
     }
 
-    // ── LOG SYSTEM ───────────────────────────────────────────────
-    function appendLog(text) {
-        const log = document.getElementById('battle-log');
-        if (!log) return;
-        const entry = document.createElement('div');
-        entry.className = 'log-entry';
-        entry.textContent = text;
-        log.appendChild(entry);
-        log.scrollTop = log.scrollHeight;
+    // â”€â”€ STATUS MESSAGE (large, replaces previous) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    function statusMsg(text) {
+        if (typeof Game !== 'undefined' && Game.setBattleStatus) {
+            Game.setBattleStatus(text);
+        }
     }
 
-    function clearLog() {
-        const log = document.getElementById('battle-log');
-        if (log) log.innerHTML = '';
-    }
-
-    // ── UI HELPERS ───────────────────────────────────────────────
+    // â”€â”€ HP BAR UPDATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function updateHpBars() {
         const eHp = document.getElementById('enemy-hp-fill');
         const pHp = document.getElementById('player-hp-fill');
         const pAet = document.getElementById('player-aet-fill');
 
-        if (eHp) {
+        if (eHp && state.enemyCreature) {
             const pct = Math.max(0, (state.enemyCreature.stats.vit / state.enemyCreature.stats.maxVit) * 100);
             eHp.style.width = pct + '%';
             eHp.style.backgroundColor = pct < 25 ? '#e05555' : pct < 50 ? '#e0a855' : '#55c3a8';
         }
-        if (pHp) {
+        if (pHp && state.playerCreature) {
             const pct = Math.max(0, (state.playerCreature.stats.vit / state.playerCreature.stats.maxVit) * 100);
             pHp.style.width = pct + '%';
             pHp.style.backgroundColor = pct < 25 ? '#e05555' : pct < 50 ? '#e0a855' : '#55c3a8';
         }
-        if (pAet) {
+        if (pAet && state.playerCreature) {
             const pct = Math.max(0, (state.playerCreature.stats.aet / state.playerCreature.stats.maxAet) * 100);
             pAet.style.width = pct + '%';
         }
     }
 
+    // â”€â”€ DRAW CREATURE ON BATTLE CANVAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    function drawCreatureSprite(canvasId, defId, flip) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (flip) {
+            ctx.save();
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+        }
+
+        if (typeof OverworldEngine !== 'undefined' && OverworldEngine.drawSprite) {
+            OverworldEngine.drawSprite(ctx, defId, 0, 0, canvas.width);
+        }
+
+        if (flip) ctx.restore();
+    }
+
+    // â”€â”€ RENDER CREATURE INFO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function renderCreatureInfo() {
-        // Enemy
-        document.getElementById('enemy-name').textContent = state.enemyCreature.name + ' Lv.' + state.enemyCreature.level;
-        const eTypes = document.getElementById('enemy-types');
-        eTypes.innerHTML = state.enemyCreature.types.map(t =>
+        if (!state.enemyCreature || !state.playerCreature) return;
+
+        document.getElementById('enemy-name').textContent =
+            state.enemyCreature.name + ' Lv.' + state.enemyCreature.level;
+        document.getElementById('enemy-types').innerHTML = state.enemyCreature.types.map(t =>
             `<span class="type-badge type-${t.toLowerCase()}">${t}</span>`
         ).join('');
 
-        // Player
-        document.getElementById('player-creature-name').textContent = state.playerCreature.name + ' Lv.' + state.playerCreature.level;
-        const pTypes = document.getElementById('player-types');
-        pTypes.innerHTML = state.playerCreature.types.map(t =>
+        document.getElementById('player-creature-name').textContent =
+            state.playerCreature.name + ' Lv.' + state.playerCreature.level;
+        document.getElementById('player-types').innerHTML = state.playerCreature.types.map(t =>
             `<span class="type-badge type-${t.toLowerCase()}">${t}</span>`
         ).join('');
 
-        // Sprites
-        const eSprite = document.getElementById('enemy-sprite-el');
-        const pSprite = document.getElementById('player-sprite-el');
-        if (eSprite) eSprite.className = 'battle-sprite enemy-sprite ' + (state.enemyCreature.spriteClass || '');
-        if (pSprite) pSprite.className = 'battle-sprite player-sprite ' + (state.playerCreature.spriteClass || '');
+        // Draw canvas sprites â€” enemy faces left (flipped), player faces right
+        drawCreatureSprite('enemy-sprite-el', state.enemyCreature.defId, true);
+        drawCreatureSprite('player-sprite-el', state.playerCreature.defId, false);
 
         updateHpBars();
     }
@@ -169,54 +166,37 @@ const BattleEngine = (() => {
         state.turnPhase = 'action';
     }
 
-    function showWeatherBanner(text) {
-        const banner = document.getElementById('weather-banner');
-        if (!banner) return;
-        banner.textContent = text;
-        banner.classList.remove('hidden');
-        setTimeout(() => banner.classList.add('hidden'), 2800);
-    }
-
     function updateBattleWeather() {
         const wDef = WEATHER[state.weather];
-        const bannerEl = document.getElementById('weather-banner');
-        const weatherLayerEl = document.getElementById('battle-weather-layer');
-        const hudWeatherEl = document.getElementById('hud-weather');
-        if (wDef) {
-            if (weatherLayerEl) {
-                weatherLayerEl.className = 'weather-layer';
-                if (wDef.class) weatherLayerEl.classList.add(wDef.class);
-            }
-            if (hudWeatherEl) hudWeatherEl.textContent = wDef.label;
+        const layerEl = document.getElementById('battle-weather-layer');
+        if (layerEl && wDef) {
+            layerEl.className = 'weather-layer';
+            if (wDef.class) layerEl.classList.add(wDef.class);
         }
     }
 
-    // ── PERFORM A MOVE ───────────────────────────────────────────
+    // â”€â”€ PERFORM A MOVE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function performMove(attacker, defender, move, attackerName, defenderName, callback) {
         state.turnPhase = 'animating';
 
-        // AET check
         if (move.aetCost > 0 && attacker.stats.aet < move.aetCost) {
-            appendLog(`${attackerName} doesn't have enough AET for ${move.name}!`);
+            statusMsg(`${attackerName} is too drained for ${move.name}!`);
             setTimeout(callback, 800);
             return;
         }
 
-        // Accuracy check
         const accuracy = move.accuracy !== undefined ? move.accuracy : 95;
         if (Math.random() * 100 > accuracy) {
-            appendLog(`${attackerName} used ${move.name}... but it missed!`);
+            statusMsg(`${attackerName} used ${move.name}... missed!`);
             if (move.aetCost > 0) attacker.stats.aet = Math.max(0, attacker.stats.aet - Math.floor(move.aetCost * 0.5));
             setTimeout(callback, 900);
             return;
         }
 
-        // Deduct AET
         attacker.stats.aet = Math.max(0, attacker.stats.aet - move.aetCost);
+        statusMsg(`${attackerName} used ${move.name}!`);
+        if (typeof Game !== 'undefined') Game.playSound('select');
 
-        appendLog(`${attackerName} used ${move.name}!`);
-
-        // Flash the defender's sprite
         const isEnemy = defenderName === state.enemyCreature.name;
         const spriteId = isEnemy ? 'enemy-sprite-el' : 'player-sprite-el';
         const spriteEl = document.getElementById(spriteId);
@@ -231,15 +211,16 @@ const BattleEngine = (() => {
             const { damage, effectiveness } = calcDamage(attacker, defender, move, state.weather);
             defender.stats.vit = Math.max(0, defender.stats.vit - damage);
             updateHpBars();
-            appendLog(`Dealt ${damage} damage.`);
 
             const effMsg = effectivenessMsg(effectiveness);
-            if (effMsg) appendLog(effMsg);
-
+            if (effMsg) {
+                setTimeout(() => statusMsg(effMsg), 400);
+            } else {
+                setTimeout(() => statusMsg(`Dealt ${damage} damage!`), 400);
+            }
             delay = 900;
         }
 
-        // Apply secondary effects
         if (move.effect) {
             const target = move.effect.target === 'self' ? attacker : defender;
             const tName  = move.effect.target === 'self' ? attackerName : defenderName;
@@ -253,21 +234,17 @@ const BattleEngine = (() => {
         }, delay);
     }
 
-    // ── ENEMY AI PICK ────────────────────────────────────────────
+    // â”€â”€ ENEMY AI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function enemyPickMove() {
         const enemy = state.enemyCreature;
         const affordable = enemy.moves.filter(m => m.aetCost <= enemy.stats.aet);
-        if (affordable.length === 0) return enemy.moves[0];   // desperation
+        if (affordable.length === 0) return enemy.moves[0];
 
-        // Simple AI: prefer moves with power, weight by type effectiveness + weather
         const scored = affordable.map(m => {
             let score = m.power || 10;
-            // STAB
             if (enemy.types.includes(m.type)) score *= 1.3;
-            // Weather bonus
             const wDef = WEATHER[state.weather];
             if (wDef && wDef.typeBonus === m.type) score *= 1.4;
-            // Type effectiveness vs player
             let eff = 1;
             for (const pt of state.playerCreature.types) {
                 const row = TYPE_CHART[m.type];
@@ -278,12 +255,11 @@ const BattleEngine = (() => {
         });
 
         scored.sort((a, b) => b.score - a.score);
-        // Top pick with small random noise
         const top = scored.slice(0, Math.min(2, scored.length));
         return top[Math.floor(Math.random() * top.length)].move;
     }
 
-    // ── TURN RESOLUTION ──────────────────────────────────────────
+    // â”€â”€ TURN RESOLUTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function resolveTurn(playerMove) {
         state.turnPhase = 'animating';
         document.getElementById('action-panel').style.display = 'none';
@@ -291,21 +267,20 @@ const BattleEngine = (() => {
 
         const enemyMove = enemyPickMove();
         const player = state.playerCreature;
-        const enemy = state.enemyCreature;
-        const playerSpd = Math.floor(player.stats.spd * getStageMult(player.statStages.spd));
-        const enemySpd  = Math.floor(enemy.stats.spd  * getStageMult(enemy.statStages.spd));
-
+        const enemy  = state.enemyCreature;
+        const playerSpd = Math.floor(player.stats.spd * getStageMult(player.statStages?.spd || 0));
+        const enemySpd  = Math.floor(enemy.stats.spd  * getStageMult(enemy.statStages?.spd || 0));
         const playerFirst = playerSpd >= enemySpd;
 
         function checkFaint(callback) {
             if (enemy.stats.vit <= 0) {
-                appendLog(`${enemy.name} has fainted!`);
-                setTimeout(() => endBattle('win'), 900);
+                statusMsg(`${enemy.name} has fainted!`);
+                setTimeout(() => endBattle('win'), 1000);
                 return;
             }
             if (player.stats.vit <= 0) {
-                appendLog(`${player.name} has fainted!`);
-                setTimeout(() => endBattle('lose'), 900);
+                statusMsg(`${player.name} has fainted!`);
+                setTimeout(() => endBattle('lose'), 1000);
                 return;
             }
             callback();
@@ -330,37 +305,22 @@ const BattleEngine = (() => {
         }
     }
 
-    // ── CAPTURE ATTEMPT ──────────────────────────────────────────
+    // â”€â”€ CAPTURE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function attemptCapture() {
         const enemy = state.enemyCreature;
+        if (!state.wildBattle) { statusMsg("Can't capture a trainer's creature!"); showActionPanel(); return; }
+        if (enemy.catchRate <= 0) { statusMsg(`${enemy.name} cannot be captured...`); showActionPanel(); return; }
 
-        if (!state.wildBattle) {
-            appendLog('You can\'t capture a trainer\'s creature!');
-            showActionPanel();
-            return;
-        }
-        if (enemy.catchRate <= 0) {
-            appendLog(`${enemy.name} cannot be captured...`);
-            showActionPanel();
-            return;
-        }
-
-        // Check Tide Orb count
         const orbCount = Game.state.items['tide_orb'] || 0;
-        if (orbCount <= 0) {
-            appendLog('You have no Tide Orbs!');
-            showActionPanel();
-            return;
-        }
+        if (orbCount <= 0) { statusMsg('You have no Tide Orbs!'); showActionPanel(); return; }
         Game.state.items['tide_orb']--;
 
-        const hpFactor = 1 - (0.65 * enemy.stats.vit / enemy.stats.maxVit); // lower HP = easier
+        const hpFactor = 1 - (0.65 * enemy.stats.vit / enemy.stats.maxVit);
         const captureChance = enemy.catchRate * hpFactor;
         const roll = Math.random();
 
-        appendLog(`The Tide Orb pulses...`);
+        statusMsg('The Tide Orb pulses...');
 
-        // Animate the capture attempt (3 shakes visual)
         const spriteEl = document.getElementById('enemy-sprite-el');
         if (spriteEl) spriteEl.classList.add('capture-pulse');
 
@@ -368,16 +328,15 @@ const BattleEngine = (() => {
             if (spriteEl) spriteEl.classList.remove('capture-pulse');
 
             if (roll < captureChance) {
-                appendLog(`${enemy.name} was bonded!`);
+                statusMsg(`${enemy.name} was bonded!`);
                 Game.captureCreature(enemy);
                 setTimeout(() => endBattle('capture'), 1200);
             } else {
-                appendLog(`${enemy.name} broke free!`);
-                // Enemy gets a free attack
+                statusMsg(`${enemy.name} broke free!`);
                 performMove(enemy, state.playerCreature, enemyPickMove(),
                     enemy.name, state.playerCreature.name, () => {
                         if (state.playerCreature.stats.vit <= 0) {
-                            appendLog(`${state.playerCreature.name} has fainted!`);
+                            statusMsg(`${state.playerCreature.name} has fainted!`);
                             setTimeout(() => endBattle('lose'), 900);
                         } else {
                             showActionPanel();
@@ -387,28 +346,28 @@ const BattleEngine = (() => {
         }, 1800);
     }
 
-    // ── END BATTLE ───────────────────────────────────────────────
+    // â”€â”€ END BATTLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function endBattle(result) {
         state.active = false;
         state.turnPhase = 'end';
 
         if (result === 'win') {
-            const xpGained = Math.floor(state.enemyCreature.level * 12 + 8);
-            appendLog(`Victory! Gained ${xpGained} experience.`);
-            Game.grantExp(state.playerCreature, xpGained);
+            const xp = Math.floor(state.enemyCreature.level * 12 + 8);
+            statusMsg(`Victory! Gained ${xp} EXP.`);
+            Game.grantExp(state.playerCreature, xp);
+            Game.playSound('levelup');
         }
 
         const cb = state.onBattleEnd;
         setTimeout(() => {
             Game.showScreen('screen-overworld');
             if (cb) cb(result);
-        }, 1500);
+        }, 1600);
     }
 
-    // ── PUBLIC API ───────────────────────────────────────────────
+    // â”€â”€ PUBLIC API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     return {
 
-        // Called by Game when a battle should start
         startBattle(playerCreature, enemyCreature, options = {}) {
             state.active = true;
             state.playerCreature = playerCreature;
@@ -419,21 +378,25 @@ const BattleEngine = (() => {
             state.onBattleEnd = options.onBattleEnd || null;
 
             Game.showScreen('screen-battle');
-            clearLog();
-            renderCreatureInfo();
-            updateBattleWeather();
+            Game.playSound('encounter');
 
-            const bg = REGIONS[Game.state.currentRegion]?.bgClass || 'bg-coastal';
-            const bgEl = document.getElementById('battle-bg');
-            if (bgEl) bgEl.className = 'battle-bg ' + bg;
+            // Slight delay so screen transition completes before drawing
+            setTimeout(() => {
+                renderCreatureInfo();
+                updateBattleWeather();
 
-            appendLog(`A wild ${enemyCreature.name} appeared!`);
-            showActionPanel();
+                const bg = REGIONS[Game.state.currentRegion]?.bgClass || 'bg-coastal';
+                const bgEl = document.getElementById('battle-bg');
+                if (bgEl) bgEl.className = 'battle-bg ' + bg;
+
+                statusMsg(`A wild ${enemyCreature.name} appeared!`);
+                showActionPanel();
+            }, 300);
         },
 
-        // Move selection button — show the move grid
         showMoves() {
             if (state.turnPhase !== 'action') return;
+            Game.playSound('select');
             const panel = document.getElementById('move-panel');
             const grid  = document.getElementById('move-grid');
             if (!panel || !grid) return;
@@ -441,22 +404,21 @@ const BattleEngine = (() => {
             grid.innerHTML = '';
             state.playerCreature.moves.forEach(move => {
                 const btn = document.createElement('button');
-                btn.className = 'move-btn type-' + move.type.toLowerCase();
+                btn.className = 'move-btn';
                 btn.innerHTML = `<span class="move-name">${move.name}</span>
-                    <span class="move-meta">${move.type} | PWR ${move.power || '—'} | AET ${move.aetCost}</span>`;
+                    <span class="move-meta type-${move.type.toLowerCase()}">${move.type} | PWR ${move.power || 'â€”'} | AET ${move.aetCost}</span>`;
 
-                // Dim if not enough AET
                 if (move.aetCost > state.playerCreature.stats.aet) btn.classList.add('move-disabled');
 
                 btn.addEventListener('mouseenter', () => {
                     document.getElementById('move-desc').textContent = move.description || '';
                     const wBonus = document.getElementById('weather-bonus');
                     const wDef = WEATHER[state.weather];
-                    if (wDef && move.weatherBonus === state.weather) {
-                        wBonus.textContent = `⚡ BOOSTED by ${wDef.label}`;
+                    if (wDef && wDef.typeBonus === move.type) {
+                        wBonus.textContent = `âš¡ BOOSTED by ${wDef.label}`;
                         wBonus.classList.remove('hidden');
                     } else if (wDef && wDef.typePenalty === move.type) {
-                        wBonus.textContent = `⬇ WEAKENED by ${wDef.label}`;
+                        wBonus.textContent = `â¬‡ WEAKENED by ${wDef.label}`;
                         wBonus.classList.remove('hidden');
                     } else {
                         wBonus.classList.add('hidden');
@@ -465,9 +427,10 @@ const BattleEngine = (() => {
 
                 btn.addEventListener('click', () => {
                     if (move.aetCost > state.playerCreature.stats.aet) {
-                        appendLog('Not enough AET!');
+                        statusMsg('Not enough AET!');
                         return;
                     }
+                    Game.playSound('select');
                     document.getElementById('action-panel').style.display = 'none';
                     panel.style.display = 'none';
                     resolveTurn(move);
@@ -481,36 +444,27 @@ const BattleEngine = (() => {
             state.turnPhase = 'move-select';
         },
 
-        // Open switch party UI
         openSwitch() {
             if (state.turnPhase !== 'action') return;
-            const party = Game.state.party;
-            if (party.length <= 1) {
-                appendLog('No other creatures to switch to!');
-                return;
-            }
+            Game.playSound('select');
+            if (Game.state.party.length <= 1) { statusMsg('No other creatures!'); return; }
             Game.openMenu('switch-battle');
         },
 
-        // Try to capture the wild creature
         tryCatch() {
             if (state.turnPhase !== 'action') return;
             attemptCapture();
         },
 
-        // Attempt to run
         runAway() {
             if (state.turnPhase !== 'action') return;
-            if (!state.canRun) {
-                appendLog('Can\'t escape!');
-                return;
-            }
-            appendLog('Got away safely!');
+            if (!state.canRun) { statusMsg("Can't escape!"); return; }
+            Game.playSound('back');
+            statusMsg('Got away safely!');
             setTimeout(() => endBattle('run'), 800);
         },
 
         getState() { return state; },
-
-        isActive() { return state.active; },
+        isActive()  { return state.active; },
     };
 })();

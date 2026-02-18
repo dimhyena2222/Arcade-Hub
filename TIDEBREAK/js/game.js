@@ -1,6 +1,6 @@
 // ============================================================
 //  TIDEBREAK: Legacy of the Storms — GAME.JS
-//  Master controller: screens, state, save, faction, notify
+//  Master controller: screens, state, options, notify, sound
 // ============================================================
 
 'use strict';
@@ -34,10 +34,13 @@ const Game = (() => {
         weather: 'CLEAR',
         unlockedRegions: new Set(['brinefall']),
 
-        // Faction reputation (0–100 each, starts neutral 20)
-        factionRep: {
-            abyssal: 20,
-            solterra: 20,
+        // Options
+        options: {
+            sound:     true,
+            encounter: 'normal',   // 'low' | 'normal' | 'high'
+            speed:     'normal',   // 'slow' | 'normal' | 'fast'
+            textspeed: 'normal',   // 'slow' | 'normal' | 'fast'
+            weather:   true,
         },
 
         // Story flags
@@ -53,32 +56,136 @@ const Game = (() => {
     });
 
     let state = DEFAULT_STATE();
-    let _overlayStack = [];     // track overlay screens for closeOverlay()
+    let _audioCtx = null;
+
+    // ── WEB AUDIO SOUND EFFECTS ──────────────────────────────
+    function getAudioCtx() {
+        if (!_audioCtx) {
+            _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        return _audioCtx;
+    }
+
+    function playSound(type) {
+        if (!state.options.sound) return;
+        try {
+            const ctx = getAudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+
+            const now = ctx.currentTime;
+            switch(type) {
+                case 'select':
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(880, now);
+                    osc.frequency.setValueAtTime(1100, now + 0.06);
+                    gain.gain.setValueAtTime(0.08, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+                    osc.start(now); osc.stop(now + 0.14);
+                    break;
+                case 'back':
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.setValueAtTime(400, now + 0.07);
+                    gain.gain.setValueAtTime(0.07, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+                    osc.start(now); osc.stop(now + 0.18);
+                    break;
+                case 'encounter': {
+                    // Three rising notes
+                    const freqs = [440, 660, 880];
+                    freqs.forEach((f, i) => {
+                        const o2 = ctx.createOscillator();
+                        const g2 = ctx.createGain();
+                        o2.connect(g2); g2.connect(ctx.destination);
+                        o2.type = 'square';
+                        const t = now + i * 0.09;
+                        o2.frequency.setValueAtTime(f, t);
+                        g2.gain.setValueAtTime(0.09, t);
+                        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+                        o2.start(t); o2.stop(t + 0.12);
+                    });
+                    return;
+                }
+                case 'levelup': {
+                    const notes = [523, 659, 784, 1047];
+                    notes.forEach((f, i) => {
+                        const o2 = ctx.createOscillator();
+                        const g2 = ctx.createGain();
+                        o2.connect(g2); g2.connect(ctx.destination);
+                        o2.type = 'triangle';
+                        const t = now + i * 0.1;
+                        o2.frequency.setValueAtTime(f, t);
+                        g2.gain.setValueAtTime(0.1, t);
+                        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+                        o2.start(t); o2.stop(t + 0.2);
+                    });
+                    return;
+                }
+                case 'capture': {
+                    // Wobble down then ping
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(120, now + 0.4);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                    osc.start(now); osc.stop(now + 0.45);
+                    const o2 = ctx.createOscillator();
+                    const g2 = ctx.createGain();
+                    o2.connect(g2); g2.connect(ctx.destination);
+                    o2.type = 'sine';
+                    o2.frequency.setValueAtTime(1200, now + 0.5);
+                    g2.gain.setValueAtTime(0.12, now + 0.5);
+                    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+                    o2.start(now + 0.5); o2.stop(now + 0.75);
+                    return;
+                }
+                default:
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    gain.gain.setValueAtTime(0.05, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    osc.start(now); osc.stop(now + 0.1);
+            }
+        } catch(e) { /* AudioContext unavailable */ }
+    }
 
     // ── SCREEN MANAGEMENT ────────────────────────────────────
     function showScreen(id) {
-        const all = document.querySelectorAll('.screen');
-        all.forEach(s => s.classList.remove('active'));
+        const overlay = document.getElementById('screen-transition');
+        const doSwitch = () => {
+            const all = document.querySelectorAll('.screen');
+            all.forEach(s => s.classList.remove('active'));
+            const target = document.getElementById(id);
+            if (target) {
+                target.classList.add('active');
+                state.previousScreen = state.currentScreen;
+                state.currentScreen = id;
+            }
+            if (id === 'screen-overworld') {
+                OverworldEngine.resumeLoop();
+                updatePartyStrip();
+            } else {
+                OverworldEngine.pauseLoop();
+            }
+        };
 
-        const target = document.getElementById(id);
-        if (target) {
-            target.classList.add('active');
-            state.previousScreen = state.currentScreen;
-            state.currentScreen = id;
-        }
-
-        // Overworld-specific
-        if (id === 'screen-overworld') {
-            OverworldEngine.resumeLoop();
-            updatePartyStrip();
-            updateFactionMeters();
+        if (overlay) {
+            overlay.classList.add('fading-in');
+            setTimeout(() => {
+                doSwitch();
+                overlay.classList.remove('fading-in');
+                overlay.classList.add('fading-out');
+                setTimeout(() => overlay.classList.remove('fading-out'), 260);
+            }, 220);
         } else {
-            OverworldEngine.pauseLoop();
+            doSwitch();
         }
     }
 
     function closeOverlay() {
-        // Pop back to overworld (or previous screen)
+        playSound('back');
         if (state.previousScreen && state.previousScreen !== state.currentScreen) {
             showScreen(state.previousScreen);
         } else {
@@ -86,12 +193,70 @@ const Game = (() => {
         }
     }
 
+    // ── ESCAPE MENU ──────────────────────────────────────────
+    function closeEscapeMenu() {
+        playSound('back');
+        const menu = document.getElementById('action-menu');
+        if (!menu) return;
+        menu.classList.remove('menu-open');
+        setTimeout(() => menu.classList.add('hidden'), 180);
+    }
+
+    // ── OPTIONS ──────────────────────────────────────────────
+    function toggleOption(key) {
+        playSound('select');
+        state.options[key] = !state.options[key];
+        _renderOptionsScreen();
+    }
+
+    function cycleOption(key) {
+        playSound('select');
+        const cycles = {
+            encounter: ['low', 'normal', 'high'],
+            speed:     ['slow', 'normal', 'fast'],
+            textspeed: ['slow', 'normal', 'fast'],
+        };
+        const opts = cycles[key];
+        if (!opts) return;
+        const idx = opts.indexOf(state.options[key]);
+        state.options[key] = opts[(idx + 1) % opts.length];
+        _renderOptionsScreen();
+    }
+
+    function _renderOptionsScreen() {
+        const o = state.options;
+        const soundBtn = document.getElementById('opt-sound');
+        const encBtn   = document.getElementById('opt-encounter');
+        const spdBtn   = document.getElementById('opt-speed');
+        const txtBtn   = document.getElementById('opt-textspeed');
+        const wxBtn    = document.getElementById('opt-weather');
+
+        if (soundBtn) {
+            soundBtn.textContent = o.sound ? 'ON' : 'OFF';
+            soundBtn.className = 'option-toggle ' + (o.sound ? 'opt-on' : 'opt-off');
+        }
+        if (encBtn) {
+            encBtn.textContent = o.encounter.toUpperCase();
+        }
+        if (spdBtn) {
+            spdBtn.textContent = o.speed.toUpperCase();
+        }
+        if (txtBtn) {
+            txtBtn.textContent = o.textspeed.toUpperCase();
+        }
+        if (wxBtn) {
+            wxBtn.textContent = o.weather ? 'ON' : 'OFF';
+            wxBtn.className = 'option-toggle ' + (o.weather ? 'opt-on' : 'opt-off');
+        }
+    }
+
     // ── NEW GAME ─────────────────────────────────────────────
     function startNewGame() {
+        playSound('select');
         state = DEFAULT_STATE();
         state.introIndex = 0;
         showScreen('screen-intro');
-        runIntroDialogue();
+        setTimeout(runIntroDialogue, 260);
     }
 
     // ── INTRO DIALOGUE RUNNER ────────────────────────────────
@@ -112,7 +277,6 @@ const Game = (() => {
         if (bgEl)      bgEl.className        = 'scene-bg bg-' + (line.bg || 'lab');
         if (charEl)    charEl.className      = 'scene-character char-' + (line.char || 'maris');
 
-        // Click or key to advance
         const scene = document.getElementById('intro-scene');
         if (scene) {
             scene.onclick = null;
@@ -121,6 +285,7 @@ const Game = (() => {
     }
 
     function advanceIntro() {
+        playSound('select');
         state.introIndex++;
         const line = INTRO_DIALOGUE[state.introIndex];
         if (!line || line.transition === 'starter') {
@@ -135,24 +300,21 @@ const Game = (() => {
     function selectStarter(id) {
         if (state.flags.starterChosen) return;
         if (!CREATURE_DEFS[id]) return;
+        playSound('select');
 
         const creature = createCreatureInstance(id, 5);
         state.party.push(creature);
         state.flags.starterChosen = true;
 
-        // Highlight chosen card
         document.querySelectorAll('.starter-card').forEach(c => c.classList.remove('chosen'));
         const card = document.getElementById('sc-' + id);
         if (card) card.classList.add('chosen');
 
         notify(`${creature.name} has chosen to join you.`, 'success');
 
-        // Give starter Tide Orbs + salves from Maris
         state.items.tide_orb    = (state.items.tide_orb    || 0) + 5;
         state.items.reef_salve  = (state.items.reef_salve  || 0) + 2;
         state.items.storm_draft = (state.items.storm_draft || 0) + 1;
-
-        // Register in codex
         state.codex.add(id);
 
         setTimeout(() => {
@@ -164,6 +326,14 @@ const Game = (() => {
 
     // ── OPEN MENU OVERLAYS ────────────────────────────────────
     function openMenu(type) {
+        playSound('select');
+        // Close escape menu if open
+        const esc = document.getElementById('action-menu');
+        if (esc && esc.classList.contains('menu-open')) {
+            esc.classList.remove('menu-open');
+            esc.classList.add('hidden');
+        }
+
         switch (type) {
             case 'team':
                 renderTeamScreen();
@@ -177,11 +347,9 @@ const Game = (() => {
                 renderMapScreen();
                 showScreen('screen-map');
                 break;
-            case 'factions':
-                showFactionInfo();
-                break;
             case 'options':
-                notify('Options coming soon.', 'info');
+                _renderOptionsScreen();
+                showScreen('screen-options');
                 break;
             case 'switch-battle':
                 showBattleSwitchPanel();
@@ -191,18 +359,105 @@ const Game = (() => {
         }
     }
 
+    // ── CREATURE DETAIL SCREEN ───────────────────────────────
+    function showCreatureDetail(creature) {
+        if (!creature) return;
+        playSound('select');
+
+        const container = document.getElementById('creature-detail-body');
+        if (!container) return;
+
+        const def = CREATURE_DEFS[creature.defId] || {};
+        const vPct = Math.round((creature.stats.vit / creature.stats.maxVit) * 100);
+        const aPct = Math.round((creature.stats.aet / creature.stats.maxAet) * 100);
+        const expPct = Math.round(((creature.exp || 0) / expToNextLevel(creature.level)) * 100);
+
+        const statMax = 120;
+        const stats = [
+            { label: 'VIT', val: creature.stats.vit,    max: creature.stats.maxVit, pct: vPct, color: '#55c3a8' },
+            { label: 'AET', val: creature.stats.aet,    max: creature.stats.maxAet, pct: aPct, color: '#6b8fff' },
+            { label: 'ATK', val: creature.stats.atk,    max: statMax,               pct: Math.round((creature.stats.atk/statMax)*100), color: '#e05c2a' },
+            { label: 'DEF', val: creature.stats.def,    max: statMax,               pct: Math.round((creature.stats.def/statMax)*100), color: '#8a7060' },
+            { label: 'SPD', val: creature.stats.spd,    max: statMax,               pct: Math.round((creature.stats.spd/statMax)*100), color: '#f0e040' },
+        ];
+
+        container.innerHTML = `
+            <div class="detail-header">
+                <div class="detail-canvas-wrap">
+                    <canvas id="detail-sprite-canvas" width="120" height="120"></canvas>
+                </div>
+                <div class="detail-meta">
+                    <div class="detail-name">${creature.name}</div>
+                    <div class="detail-num">#${String(def.codexNum || '??').padStart(3,'0')} · ${def.region || 'Brinefall Shores'}</div>
+                    <div class="detail-types">
+                        ${creature.types.map(t => `<span class="type-badge type-${t.toLowerCase()}">${t}</span>`).join('')}
+                    </div>
+                    <div class="detail-level">LEVEL ${creature.level}</div>
+                    <div class="detail-exp-row">
+                        <span>EXP</span>
+                        <div class="detail-exp-bar"><div class="detail-exp-fill" style="width:${expPct}%"></div></div>
+                        <span>${creature.exp || 0} / ${expToNextLevel(creature.level)}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="detail-section-title">STATS</div>
+            <div class="detail-stats-grid">
+                ${stats.map(s => `
+                    <div class="detail-stat-row">
+                        <div class="detail-stat-label">${s.label}</div>
+                        <div class="detail-stat-bar"><div class="detail-stat-fill" style="width:${Math.min(100,s.pct)}%;background:${s.color}"></div></div>
+                        <div class="detail-stat-val">${s.val}${s.max !== statMax ? '/'+s.max : ''}</div>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="detail-section-title">MOVES</div>
+            <div class="detail-moves-list">
+                ${creature.moves.map(m => `
+                    <div class="detail-move-row">
+                        <span class="type-badge type-${m.type.toLowerCase()}">${m.type}</span>
+                        <span class="detail-move-name">${m.name}</span>
+                        <div class="detail-move-meta">PWR ${m.power || '—'} · AET ${m.aetCost || 0}</div>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="detail-section-title">LORE</div>
+            <div class="detail-lore">${def.loreNote || 'No lore recorded yet.'}</div>
+            <div class="detail-close-row">
+                <button class="btn-secondary close-btn" onclick="Game.closeCreatureDetail()">✕  CLOSE</button>
+            </div>
+        `;
+
+        // Draw sprite on the detail canvas
+        requestAnimationFrame(() => {
+            const canvas = document.getElementById('detail-sprite-canvas');
+            if (canvas && OverworldEngine.drawSprite) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, 120, 120);
+                OverworldEngine.drawSprite(ctx, creature.defId, 0, 0, 120);
+            }
+        });
+
+        showScreen('screen-creature-detail');
+    }
+
+    function closeCreatureDetail() {
+        playSound('back');
+        closeOverlay();
+    }
+
     // ── TEAM SCREEN ──────────────────────────────────────────
     function renderTeamScreen() {
         const list = document.getElementById('team-list');
         if (!list) return;
         list.innerHTML = '';
 
-        state.party.forEach((creature, idx) => {
+        state.party.forEach((creature) => {
             const vPct = Math.round((creature.stats.vit / creature.stats.maxVit) * 100);
             const aPct = Math.round((creature.stats.aet / creature.stats.maxAet) * 100);
 
             const el = document.createElement('div');
             el.className = 'team-card';
+            el.style.cursor = 'pointer';
             el.innerHTML = `
                 <div class="team-sprite ${creature.spriteClass}"></div>
                 <div class="team-info">
@@ -228,6 +483,7 @@ const Game = (() => {
                     <div class="team-lore">${CREATURE_DEFS[creature.defId]?.loreNote || ''}</div>
                 </div>
             `;
+            el.addEventListener('click', () => showCreatureDetail(creature));
             list.appendChild(el);
         });
 
@@ -257,6 +513,10 @@ const Game = (() => {
                     </div>
                     <div class="codex-desc">${def.desc}</div>
                 `;
+                el.addEventListener('click', () => {
+                    const inst = state.party.find(c => c.defId === def.id);
+                    if (inst) showCreatureDetail(inst);
+                });
             } else {
                 el.innerHTML = `
                     <div class="codex-num">#${def.codexNum}</div>
@@ -271,7 +531,6 @@ const Game = (() => {
 
     // ── MAP SCREEN ───────────────────────────────────────────
     function renderMapScreen() {
-        // Update island lock states
         Object.entries(REGIONS).forEach(([regionId, region]) => {
             const islandEl = document.getElementById('island-' + regionId.replace('_', '-'));
             if (!islandEl) return;
@@ -290,32 +549,6 @@ const Game = (() => {
         });
     }
 
-    // ── FACTION INFO ─────────────────────────────────────────
-    function showFactionInfo() {
-        const ab = state.factionRep.abyssal;
-        const so = state.factionRep.solterra;
-        notify(
-            `Abyssal: ${ab}/100 | Solterra: ${so}/100`,
-            ab > so ? 'warning' : so > ab ? 'info' : 'neutral'
-        );
-    }
-
-    function updateFactionMeters() {
-        const abEl = document.getElementById('rep-abyss');
-        const soEl = document.getElementById('rep-solt');
-        if (abEl) abEl.style.width = state.factionRep.abyssal + '%';
-        if (soEl) soEl.style.width = state.factionRep.solterra + '%';
-    }
-
-    function modFactionRep(faction, amount) {
-        state.factionRep[faction] = Math.max(0, Math.min(100, (state.factionRep[faction] || 0) + amount));
-        updateFactionMeters();
-
-        const factDef = FACTIONS[faction];
-        const dir = amount > 0 ? '▲' : '▼';
-        notify(`${dir} ${factDef.shortName} reputation ${amount > 0 ? '+' : ''}${amount}`, 'info');
-    }
-
     // ── PARTY STRIP (HUD bottom) ─────────────────────────────
     function updatePartyStrip() {
         const strip = document.getElementById('party-strip');
@@ -325,14 +558,15 @@ const Game = (() => {
         state.party.forEach((creature, i) => {
             const pct = Math.max(0, (creature.stats.vit / creature.stats.maxVit) * 100);
             const icon = document.createElement('div');
-            icon.className = 'party-icon';
+            icon.className = 'party-icon' + (i === 0 ? ' party-lead' : '');
+            icon.title = `${creature.name} Lv.${creature.level}`;
             icon.innerHTML = `
                 <div class="party-mini-sprite ${creature.spriteClass}"></div>
                 <div class="party-vit-bar">
                     <div class="party-vit-fill" style="width:${pct}%;background:${pct < 25 ? '#e05555' : '#55c3a8'}"></div>
                 </div>
             `;
-            if (i === 0) icon.classList.add('party-lead');
+            icon.addEventListener('click', () => showCreatureDetail(creature));
             strip.appendChild(icon);
         });
     }
@@ -341,13 +575,9 @@ const Game = (() => {
     function setWeather(weatherKey) {
         if (!WEATHER[weatherKey]) return;
         state.weather = weatherKey;
-
         OverworldEngine.setWeatherVisual(weatherKey);
-
         const wDef = WEATHER[weatherKey];
-        if (weatherKey !== 'CLEAR') {
-            showClimateEvent(wDef.label);
-        }
+        if (weatherKey !== 'CLEAR') showClimateEvent(wDef.label);
     }
 
     function showClimateEvent(label) {
@@ -367,6 +597,7 @@ const Game = (() => {
         }
         state.party.push(creature);
         state.codex.add(creature.defId);
+        playSound('capture');
         notify(`${creature.name} joined your party!`, 'success');
         updatePartyStrip();
     }
@@ -388,13 +619,9 @@ const Game = (() => {
 
     function levelUp(creature) {
         creature.level++;
-
         const def = CREATURE_DEFS[creature.defId];
         if (!def) return;
-
         const scale = (base) => Math.floor(base + base * 0.08 * creature.level);
-
-        // Increase stats
         const newMaxVit = scale(def.baseStats.vit);
         const vitGain   = newMaxVit - creature.stats.maxVit;
         creature.stats.maxVit = newMaxVit;
@@ -405,9 +632,9 @@ const Game = (() => {
         const newMaxAet = scale(def.baseStats.aet);
         creature.stats.maxAet = newMaxAet;
 
+        playSound('levelup');
         notify(`${creature.name} reached Level ${creature.level}!`, 'success');
 
-        // Learn new move if available at this level threshold
         const moveIdx = Math.min(creature.level - 1, def.learnset.length - 1);
         if (moveIdx >= 0) {
             const newMoveId = def.learnset[moveIdx];
@@ -417,12 +644,10 @@ const Game = (() => {
                     creature.moves.push(MOVES[newMoveId]);
                     notify(`${creature.name} learned ${MOVES[newMoveId].name}!`, 'info');
                 } else {
-                    // Could implement move replacement — for now, skip
                     notify(`${creature.name} could learn ${MOVES[newMoveId].name} but knows 4 moves already.`, 'neutral');
                 }
             }
         }
-
         updatePartyStrip();
     }
 
@@ -431,79 +656,79 @@ const Game = (() => {
         const battleState = BattleEngine.getState();
         const active = battleState.playerCreature;
 
-        const log = document.getElementById('battle-log');
+        const log = document.getElementById('battle-status-log');
         if (!log) return;
 
-        // Remove old switch list if any
         document.getElementById('switch-list-temp')?.remove();
 
         const switchDiv = document.createElement('div');
         switchDiv.id = 'switch-list-temp';
         switchDiv.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;padding:8px 0;';
 
-        state.party.forEach((creature, idx) => {
+        state.party.forEach((creature) => {
             if (creature === active) return;
             const btn = document.createElement('button');
             btn.className = 'battle-btn';
             btn.style.cssText = 'font-size:0.75rem;padding:6px 10px;';
             const hp = Math.round((creature.stats.vit / creature.stats.maxVit) * 100);
             btn.textContent = `${creature.name} Lv.${creature.level} (${hp}%)`;
-            if (creature.stats.vit <= 0) {
-                btn.disabled = true;
-                btn.style.opacity = '0.4';
-            }
+            if (creature.stats.vit <= 0) { btn.disabled = true; btn.style.opacity = '0.4'; }
             btn.addEventListener('click', () => {
                 switchDiv.remove();
+                playSound('select');
                 battleState.playerCreature = creature;
-                // Show switch log + re-render battle info
-                const logEl = document.getElementById('battle-log');
-                const entry = document.createElement('div');
-                entry.className = 'log-entry';
-                entry.textContent = `Go, ${creature.name}!`;
-                logEl.appendChild(entry);
-                logEl.scrollTop = logEl.scrollHeight;
-                // Refresh battle UI
+                setBattleStatus(`Go, ${creature.name}!`);
                 document.getElementById('player-creature-name').textContent = creature.name + ' Lv.' + creature.level;
                 document.getElementById('player-types').innerHTML = creature.types.map(t =>
                     `<span class="type-badge type-${t.toLowerCase()}">${t}</span>`
                 ).join('');
-                document.getElementById('player-sprite-el').className = 'battle-sprite player-sprite ' + creature.spriteClass;
-                // Update HP/AET bars
-                const pHp = document.getElementById('player-hp-fill');
+                const canvas = document.getElementById('player-sprite-el');
+                if (canvas && OverworldEngine.drawSprite) {
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    OverworldEngine.drawSprite(ctx, creature.defId, 0, 0, canvas.width);
+                }
+                const pHp  = document.getElementById('player-hp-fill');
                 const pAet = document.getElementById('player-aet-fill');
-                if (pHp) pHp.style.width = Math.max(0, (creature.stats.vit / creature.stats.maxVit) * 100) + '%';
+                if (pHp)  pHp.style.width  = Math.max(0, (creature.stats.vit / creature.stats.maxVit) * 100) + '%';
                 if (pAet) pAet.style.width = Math.max(0, (creature.stats.aet / creature.stats.maxAet) * 100) + '%';
-                // Show action panel
                 document.getElementById('action-panel').style.display = 'flex';
             });
             switchDiv.appendChild(btn);
         });
 
         if (!switchDiv.children.length) {
-            const msg = document.createElement('div');
-            msg.className = 'log-entry';
-            msg.textContent = 'No other usable companions!';
-            log.appendChild(msg);
+            setBattleStatus('No other usable companions!');
             return;
         }
-
         log.appendChild(switchDiv);
-        log.scrollTop = log.scrollHeight;
+    }
+
+    // ── BATTLE STATUS LOG ────────────────────────────────────
+    function setBattleStatus(text) {
+        const log = document.getElementById('battle-status-log');
+        if (!log) return;
+        // Fade out old message
+        const old = log.querySelector('.battle-status-msg');
+        if (old) {
+            old.classList.add('status-fade');
+            setTimeout(() => old.remove(), 250);
+        }
+        const msg = document.createElement('div');
+        msg.className = 'battle-status-msg';
+        msg.textContent = text;
+        log.appendChild(msg);
     }
 
     // ── NOTIFICATIONS ────────────────────────────────────────
     function notify(text, type = 'info') {
         const container = document.getElementById('notification-container');
         if (!container) return;
-
         const el = document.createElement('div');
         el.className = `notification notify-${type}`;
         el.textContent = text;
         container.appendChild(el);
-
-        // Trigger animation
         requestAnimationFrame(() => el.classList.add('notify-show'));
-
         setTimeout(() => {
             el.classList.remove('notify-show');
             el.classList.add('notify-hide');
@@ -511,78 +736,9 @@ const Game = (() => {
         }, 3000);
     }
 
-    // ── SAVE / LOAD ──────────────────────────────────────────
-    function saveGame() {
-        try {
-            const save = {
-                party: state.party,
-                codex: [...state.codex],
-                items: state.items,
-                currentRegion: state.currentRegion,
-                weather: state.weather,
-                unlockedRegions: [...state.unlockedRegions],
-                factionRep: state.factionRep,
-                flags: state.flags,
-                playerName: state.playerName,
-            };
-            localStorage.setItem('tidebreak_save', JSON.stringify(save));
-            notify('Journey saved.', 'success');
-        } catch(e) {
-            notify('Save failed.', 'warning');
-        }
-    }
-
-    function loadGame() {
-        try {
-            const raw = localStorage.getItem('tidebreak_save');
-            if (!raw) return false;
-            const save = JSON.parse(raw);
-            state = DEFAULT_STATE();
-            state.party          = save.party || [];
-            state.codex          = new Set(save.codex || []);
-            state.items          = save.items || state.items;
-            state.currentRegion  = save.currentRegion || 'brinefall';
-            state.weather        = save.weather || 'CLEAR';
-            state.unlockedRegions= new Set(save.unlockedRegions || ['brinefall']);
-            state.factionRep     = save.factionRep || state.factionRep;
-            state.flags          = save.flags || state.flags;
-            state.playerName     = save.playerName || 'Warden';
-            state.started        = true;
-            return true;
-        } catch(e) {
-            return false;
-        }
-    }
-
-    // ── KEYBOARD SHORTCUTS (global) ─────────────────────────
-    document.addEventListener('keydown', e => {
-        if (!state.started) return;
-        if (e.key === 'F5' || (e.ctrlKey && e.key === 's')) {
-            e.preventDefault();
-            saveGame();
-        }
-    });
-
     // ── INIT ON LOAD ─────────────────────────────────────────
     window.addEventListener('DOMContentLoaded', () => {
-        // Attempt to continue from save
-        const hasSave = loadGame();
-
-        // Title screen is shown by default (first .screen.active in HTML)
-        // Update title button if save exists
-        if (hasSave) {
-            const menu = document.querySelector('.title-menu');
-            if (menu) {
-                const contBtn = document.createElement('button');
-                contBtn.className = 'btn-primary';
-                contBtn.textContent = 'CONTINUE';
-                contBtn.onclick = () => {
-                    showScreen('screen-overworld');
-                    OverworldEngine.init();
-                };
-                menu.insertBefore(contBtn, menu.firstChild);
-            }
-        }
+        // Nothing to restore — no save system
     });
 
     // ── PUBLIC API ───────────────────────────────────────────
@@ -591,20 +747,23 @@ const Game = (() => {
 
         showScreen,
         closeOverlay,
+        closeEscapeMenu,
         startNewGame,
         selectStarter,
         openMenu,
         notify,
+        setBattleStatus,
         setWeather,
         captureCreature,
         grantExp,
-        modFactionRep,
         updatePartyStrip,
+        playSound,
+        toggleOption,
+        cycleOption,
+        showCreatureDetail,
+        closeCreatureDetail,
 
         // Expose battle sub-object so HTML onclick="Game.battle.X()" works
         get battle() { return BattleEngine; },
-
-        save: saveGame,
-        load: loadGame,
     };
 })();
