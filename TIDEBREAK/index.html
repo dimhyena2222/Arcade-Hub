@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIDEBREAK: Legacy of the Storms</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ============================================================
+     SCREENS
+============================================================ -->
+
+<!-- TITLE SCREEN -->
+<div id="screen-title" class="screen active">
+    <div class="weather-overlay" id="title-weather"></div>
+    <div class="title-content">
+        <div class="title-subtitle">AURELIOS ARCHIPELAGO</div>
+        <h1 class="game-title">TIDEBREAK</h1>
+        <div class="title-legend">LEGACY OF THE STORMS</div>
+        <div class="title-divider"></div>
+        <div class="title-menu">
+            <button class="btn-primary" onclick="Game.startNewGame()">NEW JOURNEY</button>
+            <button class="btn-secondary" onclick="Game.showScreen('screen-credits')">LORE ARCHIVE</button>
+            <button class="btn-secondary" onclick="window.location.href='../index.html'">RETURN TO HUB</button>
+        </div>
+    </div>
+    <div class="title-creatures">
+        <div class="silhouette silhouette-sea"></div>
+        <div class="silhouette silhouette-sky"></div>
+    </div>
+</div>
+
+<!-- INTRO / PROFESSOR MARIS -->
+<div id="screen-intro" class="screen">
+    <div class="dialogue-scene" id="intro-scene">
+        <div class="scene-bg" id="scene-bg"></div>
+        <div class="scene-character" id="scene-char"></div>
+        <div class="dialogue-box">
+            <div class="dialogue-speaker" id="dlg-speaker"></div>
+            <div class="dialogue-text" id="dlg-text"></div>
+            <div class="dialogue-hint">▼ Click to continue</div>
+        </div>
+    </div>
+</div>
+
+<!-- STARTER SELECTION -->
+<div id="screen-starter" class="screen">
+    <div class="starter-bg"></div>
+    <div class="starter-ui">
+        <h2 class="starter-title">CHOOSE YOUR COMPANION</h2>
+        <p class="starter-sub">Professor Maris gestures toward three creatures stirring in the lab...</p>
+        <div class="starter-cards">
+            <div class="starter-card" id="sc-pyroshell" onclick="Game.selectStarter('pyroshell')">
+                <div class="creature-sprite pyroshell-sprite"></div>
+                <div class="creature-name">PYROSHELL</div>
+                <div class="creature-types">
+                    <span class="type-badge type-ember">EMBER</span>
+                    <span class="type-badge type-stone">STONE</span>
+                </div>
+                <p class="creature-desc">"A stoic ember tortoise. Its volcanic shell hardens under pressure. Prefers to endure before striking."</p>
+                <div class="creature-stats">
+                    <div class="stat-row"><span>VIT</span><div class="stat-bar"><div class="stat-fill" style="width:90%"></div></div></div>
+                    <div class="stat-row"><span>ATK</span><div class="stat-bar"><div class="stat-fill" style="width:50%"></div></div></div>
+                    <div class="stat-row"><span>SPD</span><div class="stat-bar"><div class="stat-fill" style="width:30%"></div></div></div>
+                </div>
+            </div>
+            <div class="starter-card" id="sc-verdantide" onclick="Game.selectStarter('verdantide')">
+                <div class="creature-sprite verdantide-sprite"></div>
+                <div class="creature-name">VERDANTIDE</div>
+                <div class="creature-types">
+                    <span class="type-badge type-tide">TIDE</span>
+                    <span class="type-badge type-flora">FLORA</span>
+                </div>
+                <p class="creature-desc">"A reef serpent with bioluminescent fins. Adapts to any current. Strategically well-rounded."</p>
+                <div class="creature-stats">
+                    <div class="stat-row"><span>VIT</span><div class="stat-bar"><div class="stat-fill" style="width:65%"></div></div></div>
+                    <div class="stat-row"><span>ATK</span><div class="stat-bar"><div class="stat-fill" style="width:65%"></div></div></div>
+                    <div class="stat-row"><span>SPD</span><div class="stat-bar"><div class="stat-fill" style="width:65%"></div></div></div>
+                </div>
+            </div>
+            <div class="starter-card" id="sc-galeimp" onclick="Game.selectStarter('galeimp')">
+                <div class="creature-sprite galeimp-sprite"></div>
+                <div class="creature-name">GALEIMP</div>
+                <div class="creature-types">
+                    <span class="type-badge type-gale">GALE</span>
+                    <span class="type-badge type-volt">VOLT</span>
+                </div>
+                <p class="creature-desc">"A sky-lemur that rides thermal updrafts. Erratic and fast. Strikes before being seen."</p>
+                <div class="creature-stats">
+                    <div class="stat-row"><span>VIT</span><div class="stat-bar"><div class="stat-fill" style="width:40%"></div></div></div>
+                    <div class="stat-row"><span>ATK</span><div class="stat-bar"><div class="stat-fill" style="width:75%"></div></div></div>
+                    <div class="stat-row"><span>SPD</span><div class="stat-bar"><div class="stat-fill" style="width:95%"></div></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- OVERWORLD -->
+<div id="screen-overworld" class="screen">
+    <!-- Weather Atmosphere -->
+    <div class="weather-layer" id="weather-layer"></div>
+
+    <!-- Map Canvas -->
+    <canvas id="overworld-canvas"></canvas>
+
+    <!-- HUD -->
+    <div class="hud">
+        <div class="hud-top-left">
+            <div class="location-tag" id="hud-location">BRINEFALL VILLAGE</div>
+            <div class="weather-tag" id="hud-weather">☀ CLEAR SKIES</div>
+        </div>
+        <div class="hud-top-right">
+            <div class="faction-meters">
+                <div class="faction-row">
+                    <span class="faction-name abyss">ABYSSAL</span>
+                    <div class="faction-bar"><div class="faction-fill abyss-fill" id="rep-abyss" style="width:0%"></div></div>
+                </div>
+                <div class="faction-row">
+                    <span class="faction-name solt">SOLTERRA</span>
+                    <div class="faction-bar"><div class="faction-fill solt-fill" id="rep-solt" style="width:0%"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="hud-bottom">
+            <div class="party-strip" id="party-strip"></div>
+        </div>
+    </div>
+
+    <!-- Overworld Dialogue -->
+    <div id="overworld-dlg" class="overworld-dialogue hidden">
+        <div class="dialogue-speaker" id="ow-dlg-speaker"></div>
+        <div class="dialogue-text" id="ow-dlg-text"></div>
+        <div class="dialogue-hint">▼ Press Z to continue</div>
+    </div>
+
+    <!-- Action Menu -->
+    <div id="action-menu" class="action-menu hidden">
+        <button onclick="Game.openMenu('team')">🌊 TEAM</button>
+        <button onclick="Game.openMenu('codex')">📖 CODEX</button>
+        <button onclick="Game.openMenu('map')">🗺 MAP</button>
+        <button onclick="Game.openMenu('factions')">⚖ FACTIONS</button>
+        <button onclick="Game.openMenu('options')">⚙ OPTIONS</button>
+    </div>
+</div>
+
+<!-- BATTLE SCREEN -->
+<div id="screen-battle" class="screen">
+    <div class="battle-bg" id="battle-bg"></div>
+    <div class="weather-layer" id="battle-weather-layer"></div>
+
+    <!-- Enemy Side -->
+    <div class="battle-enemy-area">
+        <div class="battle-info enemy-info">
+            <div class="battle-name" id="enemy-name">---</div>
+            <div class="type-row" id="enemy-types"></div>
+            <div class="hp-bar-container">
+                <div class="hp-label">VIT</div>
+                <div class="hp-bar"><div class="hp-fill enemy-hp" id="enemy-hp-fill"></div></div>
+            </div>
+        </div>
+        <div class="battle-sprite enemy-sprite" id="enemy-sprite-el"></div>
+    </div>
+
+    <!-- Player Side -->
+    <div class="battle-player-area">
+        <div class="battle-sprite player-sprite" id="player-sprite-el"></div>
+        <div class="battle-info player-info">
+            <div class="battle-name" id="player-creature-name">---</div>
+            <div class="type-row" id="player-types"></div>
+            <div class="hp-bar-container">
+                <div class="hp-label">VIT</div>
+                <div class="hp-bar"><div class="hp-fill player-hp" id="player-hp-fill"></div></div>
+            </div>
+            <div class="hp-bar-container">
+                <div class="hp-label">AET</div>
+                <div class="aet-bar"><div class="aet-fill" id="player-aet-fill"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Battle Log -->
+    <div class="battle-bottom">
+        <div class="battle-log" id="battle-log"></div>
+
+        <!-- Move Panel -->
+        <div class="move-panel" id="move-panel">
+            <div class="move-grid" id="move-grid"></div>
+            <div class="move-info-box">
+                <div id="move-desc">Select a move...</div>
+                <div id="weather-bonus" class="weather-bonus hidden"></div>
+            </div>
+        </div>
+
+        <!-- Action Panel -->
+        <div class="action-panel" id="action-panel">
+            <button class="battle-btn" onclick="Game.battle.showMoves()">⚔ CHANNEL</button>
+            <button class="battle-btn" onclick="Game.battle.openSwitch()">🔄 SWITCH</button>
+            <button class="battle-btn" onclick="Game.battle.tryCatch()">🔮 CAPTURE</button>
+            <button class="battle-btn" onclick="Game.battle.runAway()">💨 RETREAT</button>
+        </div>
+    </div>
+
+    <!-- Weather Banner -->
+    <div class="weather-banner hidden" id="weather-banner"></div>
+</div>
+
+<!-- FULL MAP OVERLAY -->
+<div id="screen-map" class="screen overlay-screen">
+    <div class="map-container">
+        <h2 class="map-title">AURELIOS ARCHIPELAGO</h2>
+        <div class="archipelago-map" id="archipelago-map">
+            <div class="island" id="island-brinefall" style="left:45%;top:72%">
+                <div class="island-dot accessible"></div>
+                <div class="island-label">Brinefall<br><small>ACT 1</small></div>
+            </div>
+            <div class="island" id="island-cindercrag" style="left:60%;top:55%">
+                <div class="island-dot locked"></div>
+                <div class="island-label">Cindercrag<br><small>LOCKED</small></div>
+            </div>
+            <div class="island" id="island-verdant" style="left:30%;top:50%">
+                <div class="island-dot locked"></div>
+                <div class="island-label">Verdant Shelf<br><small>LOCKED</small></div>
+            </div>
+            <div class="island" id="island-spire" style="left:50%;top:25%">
+                <div class="island-dot legendary"></div>
+                <div class="island-label">Sky Spire<br><small>ACT 3</small></div>
+            </div>
+        </div>
+        <button class="btn-secondary close-btn" onclick="Game.closeOverlay()">✕ CLOSE</button>
+    </div>
+</div>
+
+<!-- CODEX OVERLAY -->
+<div id="screen-codex" class="screen overlay-screen">
+    <div class="codex-container">
+        <h2 class="map-title">CODEX: KNOWN CREATURES</h2>
+        <div class="codex-grid" id="codex-grid"></div>
+        <button class="btn-secondary close-btn" onclick="Game.closeOverlay()">✕ CLOSE</button>
+    </div>
+</div>
+
+<!-- TEAM OVERLAY -->
+<div id="screen-team" class="screen overlay-screen">
+    <div class="team-container">
+        <h2 class="map-title">YOUR PARTY</h2>
+        <div class="team-list" id="team-list"></div>
+        <button class="btn-secondary close-btn" onclick="Game.closeOverlay()">✕ CLOSE</button>
+    </div>
+</div>
+
+<!-- CREDITS / LORE OVERLAY -->
+<div id="screen-credits" class="screen overlay-screen">
+    <div class="credits-container">
+        <h2 class="map-title">LORE ARCHIVE</h2>
+        <div class="lore-text">
+            <h3>THE AURELIOS ARCHIPELAGO</h3>
+            <p>A vast chain of tropical islands held together not by land bridges but by invisible threads of energy known as <em>Aether Currents</em> — ancient flows that regulate climate, tidal rhythms, and the migration of mythic creatures.</p>
+            <h3>THE THREE TITANS</h3>
+            <p><strong class="abyss-text">LEVIATYR</strong> — The Sea Colossus. Ancient sovereign of tectonic tides, sleeping beneath the Abyssal Trench. The Abyssal Dominion seeks to awaken it.</p>
+            <p><strong class="ember-text">PYRODRAKON</strong> — The Magma Titan. Shaper of continents, locked in volcanic stasis beneath Cindercrag. The Solterra Accord seeks to awaken it.</p>
+            <p><strong class="gale-text">TEMPESTARA</strong> — The Storm Sovereign. A sky serpent of immense proportion. Cannot be controlled. Appears only when the balance breaks catastrophically. It is the failsafe of the world itself.</p>
+            <h3>THE FACTIONS</h3>
+            <p><strong class="abyss-text">ABYSSAL DOMINION</strong> — Eco-extremists who believe civilization has permanently scarred the land. Their solution: return everything to the ocean.</p>
+            <p><strong class="ember-text">SOLTERRA ACCORD</strong> — Techno-dominators who believe humanity must master nature, not serve it. Their solution: geothermal expansion at any cost.</p>
+            <p>Both are wrong. Both believe they are right. You are neither.</p>
+        </div>
+        <button class="btn-secondary close-btn" onclick="Game.showScreen('screen-title')">← RETURN</button>
+    </div>
+</div>
+
+<!-- NOTIFICATION SYSTEM -->
+<div id="notification-container"></div>
+
+<!-- WEATHER EVENT FULL BANNER -->
+<div id="climate-event-banner" class="climate-banner hidden">
+    <div class="climate-icon" id="climate-icon"></div>
+    <div class="climate-text" id="climate-text"></div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/overworld.js"></script>
+<script src="js/game.js"></script>
+
+</body>
+</html>
