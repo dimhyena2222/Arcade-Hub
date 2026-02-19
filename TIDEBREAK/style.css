@@ -26,7 +26,7 @@
     --font-body:     'Crimson Text', serif;
 
     --panel-bg:      rgba(8, 18, 32, 0.92);
-    --panel-border:  rgba(46, 181, 199, 0.3);
+    --panel-border:  rgba(46,181,199,0.3);
     --anim-speed:    0.3s;
 }
 
@@ -846,7 +846,7 @@ html, body {
 .notification.faction-solt  { border-left-color: var(--color-ember); }
 .notification.legendary     { border-left-color: var(--color-gold); color: var(--color-gold); }
 @keyframes notifyIn  { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
-@keyframes notifyOut { from{opacity:1} to{opacity:0;transform:translateX(20px)} }
+@keyframes notifyOut { from{opacity:1;transform:none} to{opacity:0;transform:translateX(20px)} }
 
 /* ============ CLIMATE BANNER ============ */
 .climate-banner {
@@ -961,16 +961,23 @@ html, body {
 
 /* ============ BATTLE STATUS LOG (replaces battle-log) ============ */
 .battle-status-log {
-    padding: 10px 16px;
-    min-height: 54px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    pointer-events: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    overflow: hidden;
+    z-index: 1000;
 }
+.battle-status-area {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
 .battle-status-msg {
     font-family: var(--font-title);
     font-size: 1rem;

@@ -84,268 +84,233 @@ const OverworldEngine = (() => {
     };
 
     // Pre-render tile textures to offscreen canvases for performance
-    let tileCache = null;
+    let tileCache = null; // Structure: { [tileType]: [CanvasFrame0, CanvasFrame1, ...] }
+    let animTimer = 0;
 
     function buildTileCache() {
         tileCache = {};
         const types = Object.keys(TILE_BASE);
+        
         types.forEach(tKey => {
             const t = parseInt(tKey);
-            const oc = document.createElement('canvas');
-            oc.width = oc.height = TILE_SIZE;
-            const ox = oc.getContext('2d');
-            drawTileTexture(ox, t, 0, 0);
-            tileCache[t] = oc;
+            const frames = [];
+            const numFrames = (t === T.WATER || t === T.DEEP) ? 4 : 1;
+
+            for (let f = 0; f < numFrames; f++) {
+                const oc = document.createElement('canvas');
+                oc.width = oc.height = TILE_SIZE;
+                const ox = oc.getContext('2d');
+                drawPixelTile(ox, t, f);
+                frames.push(oc);
+            }
+            tileCache[t] = frames;
         });
     }
 
-    function drawTileTexture(ox, t, px, py) {
+    function drawPixelTile(ox, t, frame) {
+        const vP = 4; // Virtual Pixel size (12x12 grid for 48px tile)
+        const grid = TILE_SIZE / vP;
+        
         const base = TILE_BASE[t] || '#111';
         ox.fillStyle = base;
-        ox.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+
+        const P = (x, y, color) => {
+            ox.fillStyle = color;
+            ox.fillRect(x * vP, y * vP, vP, vP);
+        };
 
         switch(t) {
-            case T.WATER:
-            case T.DEEP: {
-                // Subtle wave lines
-                const alpha = t === T.DEEP ? 0.04 : 0.07;
-                ox.strokeStyle = `rgba(100,200,240,${alpha})`;
-                ox.lineWidth = 1;
-                for (let i = 0; i < 3; i++) {
-                    ox.beginPath();
-                    ox.moveTo(px + 4 + i*14, py + 8 + i*12);
-                    ox.quadraticCurveTo(px + 12 + i*14, py + 4 + i*12, px + 20 + i*14, py + 8 + i*12);
-                    ox.stroke();
+            case T.WATER: {
+                const c1 = '#1a5d8b'; // Lighter
+                const c2 = '#0a3854'; // Darker
+                // Animated wave pattern
+                for (let i = 0; i < grid; i++) {
+                    for (let j = 0; j < grid; j++) {
+                        const wave = Math.sin((i + frame * 2) * 0.8) + Math.cos((j + frame) * 0.5);
+                        if (wave > 1.2) P(i, j, c1);
+                        else if (wave < -1.2) P(i, j, c2);
+                    }
                 }
                 break;
             }
-            case T.SAND: {
-                // Speckles
-                ox.fillStyle = 'rgba(180,140,70,0.3)';
-                for (let i = 0; i < 5; i++) {
-                    const sx = px + (i*11+3) % TILE_SIZE;
-                    const sy = py + (i*17+5) % TILE_SIZE;
-                    ox.fillRect(sx, sy, 2, 1);
+            case T.DEEP: {
+                const c1 = '#0e2a42';
+                const c2 = '#04121a';
+                for (let i = 0; i < grid; i++) {
+                    for (let j = 0; j < grid; j++) {
+                        const wave = Math.sin((i - frame) * 0.5) * Math.cos((j + frame) * 0.8);
+                        if (wave > 0.6) P(i, j, c1);
+                        else if (wave < -0.6) P(i, j, c2);
+                    }
                 }
                 break;
             }
             case T.GRASS: {
-                // Grass blades
-                ox.strokeStyle = 'rgba(60,120,50,0.6)';
-                ox.lineWidth = 1.5;
-                [[8,36,10,28],[20,34,22,24],[32,38,34,26],[44,35,46,25],[14,38,13,26],[38,37,37,25]].forEach(([x1,y1,x2,y2]) => {
-                    ox.beginPath();
-                    ox.moveTo(px+x1, py+y1);
-                    ox.lineTo(px+x2, py+y2);
-                    ox.stroke();
+                const dark = '#1a4d22';
+                const light = '#3db87a';
+                // Random blades
+                [[2,2],[6,4],[9,2],[3,8],[7,9],[10,7]].forEach(([px,py]) => {
+                    P(px, py, light); P(px, py+1, dark);
                 });
-                // Lighter highlights
-                ox.fillStyle = 'rgba(80,180,70,0.15)';
-                ox.fillRect(px+4, py+4, 8, 4);
+                break;
+            }
+            case T.SAND: {
+                const dark = '#b8985a';
+                const highlight = '#dcc080';
+                [[1,3],[4,1],[8,4],[10,2],[3,9],[7,10],[11,6]].forEach(([px,py]) => {
+                    P(px, py, dark);
+                });
+                P(2,2, highlight); P(9,9, highlight);
                 break;
             }
             case T.PATH: {
-                // Stone-like texture
-                ox.fillStyle = 'rgba(140,110,70,0.2)';
-                ox.fillRect(px+4, py+4, 16, 12);
-                ox.fillRect(px+24, py+20, 18, 14);
-                ox.fillStyle = 'rgba(255,255,255,0.04)';
-                ox.fillRect(px+2, py+2, 44, 2);
-                break;
-            }
-            case T.SHORE: {
-                // Sandy fringe over water
-                ox.fillStyle = 'rgba(200,160,80,0.15)';
-                ox.fillRect(px, py+32, TILE_SIZE, 16);
-                ox.strokeStyle = 'rgba(100,200,240,0.15)';
-                ox.lineWidth = 1;
-                ox.beginPath();
-                ox.moveTo(px, py+38); ox.lineTo(px+TILE_SIZE, py+38);
-                ox.stroke();
-                break;
-            }
-            case T.HOUSE: {
-                // Wall + window
-                ox.fillStyle = '#5a3520';
-                ox.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                ox.fillStyle = '#7a4a30';
-                ox.fillRect(px+2, py+2, TILE_SIZE-4, TILE_SIZE-4);
-                // Window
-                ox.fillStyle = '#1a3a5a';
-                ox.fillRect(px+12, py+12, 12, 10);
-                ox.strokeStyle = '#8a6040';
-                ox.lineWidth = 1.5;
-                ox.strokeRect(px+12, py+12, 12, 10);
-                // Door
-                ox.fillStyle = '#3a1a00';
-                ox.fillRect(px+16, py+30, 10, 14);
-                break;
-            }
-            case T.DOCK: {
-                ox.fillStyle = '#7a5a32';
-                for (let i = 0; i < 3; i++) {
-                    ox.fillRect(px + i*16, py, 12, TILE_SIZE);
-                }
-                ox.fillStyle = 'rgba(0,0,0,0.2)';
-                ox.fillRect(px, py, TILE_SIZE, 3);
-                break;
-            }
-            case T.ROCK: {
-                ox.fillStyle = '#666070';
-                ox.beginPath();
-                ox.ellipse(px+TILE_SIZE/2, py+TILE_SIZE/2+4, 16, 12, 0, 0, Math.PI*2);
-                ox.fill();
-                ox.fillStyle = '#888090';
-                ox.beginPath();
-                ox.ellipse(px+TILE_SIZE/2-2, py+TILE_SIZE/2+2, 12, 9, -0.2, 0, Math.PI*2);
-                ox.fill();
-                break;
-            }
-            case T.FLOWER: {
-                // Grass base + flowers
-                ox.fillStyle = '#2c6b3a';
-                ox.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                [[10,30],[22,24],[36,32],[14,20],[40,22]].forEach(([fx,fy], i) => {
-                    const colors = ['#e87878','#f0e040','#78c8e8','#e8a050'];
-                    ox.fillStyle = colors[i%4];
-                    ox.beginPath();
-                    ox.arc(px+fx, py+fy, 3, 0, Math.PI*2);
-                    ox.fill();
+                const edge = '#8a6a4a';
+                const stone = '#b09070';
+                ox.fillStyle = edge;
+                ox.fillRect(0, 0, TILE_SIZE, vP);
+                ox.fillRect(0, 0, vP, TILE_SIZE);
+                [[3,3,6,4],[2,8,8,2],[8,4,3,6]].forEach(([px,py,pw,ph]) => {
+                    ox.fillStyle = stone;
+                    ox.fillRect(px*vP, py*vP, pw*vP, ph*vP);
                 });
                 break;
             }
             case T.TREE: {
-                // Dark ground + tree canopy
-                ox.fillStyle = '#1a4a22';
-                ox.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                const trunk = '#4a2a10';
+                const leaves = '#1a4a22';
+                const leafHigh = '#2a7a32';
                 // Trunk
-                ox.fillStyle = '#6b4a20';
-                ox.fillRect(px+18, py+30, 8, 16);
-                // Canopy layers
-                ox.fillStyle = '#2a7a32';
-                ox.beginPath();
-                ox.arc(px+22, py+20, 18, 0, Math.PI*2);
-                ox.fill();
-                ox.fillStyle = '#3a9a42';
-                ox.beginPath();
-                ox.arc(px+20, py+16, 13, 0, Math.PI*2);
-                ox.fill();
-                ox.fillStyle = 'rgba(100,200,80,0.25)';
-                ox.beginPath();
-                ox.arc(px+18, py+12, 8, 0, Math.PI*2);
-                ox.fill();
+                ox.fillStyle = trunk;
+                ox.fillRect(5*vP, 8*vP, 2*vP, 4*vP);
+                // Canopy
+                ox.fillStyle = leaves;
+                ox.fillRect(2*vP, 2*vP, 8*vP, 7*vP);
+                ox.fillRect(3*vP, 1*vP, 6*vP, 1*vP);
+                P(4,3, leafHigh); P(7,5, leafHigh);
+                break;
+            }
+            case T.HOUSE: {
+                const wall = '#5a3520';
+                const roof = '#3a1a00';
+                const window = '#1a6b8a';
+                ox.fillStyle = wall; ox.fillRect(vP, vP, 10*vP, 10*vP);
+                ox.fillStyle = roof; ox.fillRect(0, 0, TILE_SIZE, 2*vP);
+                ox.fillStyle = window; ox.fillRect(3*vP, 4*vP, 2*vP, 2*vP);
+                break;
+            }
+            case T.ROCK: {
+                const dark = '#444';
+                const mid = '#666';
+                const light = '#888';
+                ox.fillStyle = dark; ox.fillRect(3*vP, 4*vP, 7*vP, 6*vP);
+                ox.fillStyle = mid; ox.fillRect(4*vP, 5*vP, 5*vP, 4*vP);
+                P(5,6, light);
+                break;
+            }
+            case T.FLOWER: {
+                const stalk = '#1a4d22';
+                const petal = '#e8b84b';
+                [[3,3],[8,4],[4,9],[9,8]].forEach(([px,py]) => {
+                    P(px, py, stalk); P(px, py-1, petal);
+                });
+                break;
+            }
+            case T.DOCK: {
+                const wood = '#6b4a2a';
+                const gap = '#3a1a00';
+                ox.fillStyle = wood; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                ox.fillStyle = gap;
+                ox.fillRect(2*vP, 0, vP, TILE_SIZE);
+                ox.fillRect(6*vP, 0, vP, TILE_SIZE);
+                ox.fillRect(10*vP, 0, vP, TILE_SIZE);
+                break;
+            }
+            case T.SHORE: {
+                const wet = '#1a4d6b';
+                const sand = '#c8a96a';
+                ox.fillStyle = sand; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                ox.fillStyle = wet; ox.fillRect(0, 8*vP, TILE_SIZE, 4*vP);
                 break;
             }
         }
     }
 
     // ── CREATURE SPRITE PAINTERS ─────────────────────────────
-    // These draw pixel-art style battle sprites on canvas elements
+    // These draw blocky pixel-art style battle sprites
     const SPRITE_PAINTERS = {
         pyroshell(ctx, x, y, size) {
             const s = size / 80;
-            // Shell (round, orange-red gradient)
-            const g = ctx.createRadialGradient(x+40*s, y+44*s, 5*s, x+40*s, y+44*s, 36*s);
-            g.addColorStop(0, '#ff8c40'); g.addColorStop(0.5, '#c04010'); g.addColorStop(1, '#3a1000');
-            ctx.fillStyle = g;
-            ctx.beginPath(); ctx.ellipse(x+40*s, y+46*s, 34*s, 26*s, 0, 0, Math.PI*2); ctx.fill();
-            // Shell pattern (hexagons approximated)
-            ctx.strokeStyle = 'rgba(255,60,0,0.4)'; ctx.lineWidth = 1.5*s;
-            [[40,44,14],[26,38,9],[54,38,9],[40,56,9]].forEach(([cx,cy,r]) => {
-                ctx.beginPath(); ctx.arc(x+cx*s, y+cy*s, r*s, 0, Math.PI*2); ctx.stroke();
-            });
+            const p = s * 4; // Pixel size
+            
+            // Shell
+            ctx.fillStyle = '#3a1000'; ctx.fillRect(x+12*s, y+32*s, 56*s, 32*s);
+            ctx.fillStyle = '#c04010'; ctx.fillRect(x+16*s, y+28*s, 48*s, 36*s);
+            ctx.fillStyle = '#ff8c40'; ctx.fillRect(x+20*s, y+24*s, 40*s, 20*s);
+            
+            // Spots
+            ctx.fillStyle = '#8b3a0a';
+            ctx.fillRect(x+28*s, y+36*s, p, p); ctx.fillRect(x+44*s, y+44*s, p, p);
+            
             // Head
-            const hg = ctx.createRadialGradient(x+40*s, y+22*s, 4*s, x+40*s, y+24*s, 16*s);
-            hg.addColorStop(0,'#ffa060'); hg.addColorStop(1,'#8b3000');
-            ctx.fillStyle = hg;
-            ctx.beginPath(); ctx.ellipse(x+40*s, y+24*s, 14*s, 14*s, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#8b3000'; ctx.fillRect(x+32*s, y+12*s, 16*s, 16*s);
+            ctx.fillStyle = '#ffa060'; ctx.fillRect(x+34*s, y+14*s, 12*s, 12*s);
+            
             // Eyes
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x+34*s, y+20*s, 4*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x+46*s, y+20*s, 4*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#1a0000'; ctx.beginPath(); ctx.arc(x+35*s, y+20*s, 2.5*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#1a0000'; ctx.beginPath(); ctx.arc(x+47*s, y+20*s, 2.5*s, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.fillRect(x+36*s, y+18*s, p, p); ctx.fillRect(x+44*s, y+18*s, p, p);
+            ctx.fillStyle = '#000'; ctx.fillRect(x+37*s, y+19*s, s*2, s*2); ctx.fillRect(x+45*s, y+19*s, s*2, s*2);
+            
             // Legs
-            ctx.fillStyle = '#c04010';
-            [[20,62,8,12],[34,68,8,10],[52,68,8,10],[62,60,10,12]].forEach(([lx,ly,lw,lh]) => {
-                ctx.beginPath(); ctx.roundRect(x+lx*s, y+ly*s, lw*s, lh*s, 2*s); ctx.fill();
+            ctx.fillStyle = '#3a1000';
+            [[16,60],[32,64],[48,64],[60,60]].forEach(([lx,ly]) => {
+                ctx.fillRect(x+lx*s, y+ly*s, 8*s, 8*s);
             });
-            // Ember glow
-            ctx.fillStyle = 'rgba(255,120,20,0.18)';
-            ctx.beginPath(); ctx.ellipse(x+40*s, y+70*s, 26*s, 8*s, 0, 0, Math.PI*2); ctx.fill();
         },
         verdantide(ctx, x, y, size) {
             const s = size / 80;
-            // Serpentine body
-            ctx.lineWidth = 14*s; ctx.lineCap = 'round';
-            const bg = ctx.createLinearGradient(x+10*s, y+70*s, x+70*s, y+10*s);
-            bg.addColorStop(0,'#004a30'); bg.addColorStop(0.5,'#00b87a'); bg.addColorStop(1,'#60ffcc');
-            ctx.strokeStyle = bg;
-            ctx.beginPath();
-            ctx.moveTo(x+15*s, y+68*s);
-            ctx.bezierCurveTo(x+20*s, y+30*s, x+60*s, y+50*s, x+65*s, y+15*s);
-            ctx.stroke();
-            // Bioluminescent fins
-            ctx.fillStyle = 'rgba(0,220,160,0.6)';
-            [[30,45,14,6],[50,30,10,5],[40,58,12,5]].forEach(([fx,fy,fw,fh]) => {
-                ctx.beginPath();
-                ctx.ellipse(x+fx*s, y+fy*s, fw*s, fh*s, -0.4, 0, Math.PI*2);
-                ctx.fill();
+            const p = s * 4;
+            
+            // Blocky body segments
+            ctx.fillStyle = '#004a30';
+            [[16,64,16,12],[28,52,20,16],[40,36,24,20],[56,12,16,24]].forEach(([bx,by,bw,bh]) => {
+                ctx.fillRect(x+bx*s, y+by*s, bw*s, bh*s);
             });
+            ctx.fillStyle = '#00b87a';
+            [[20,66,8,8],[32,54,12,12],[44,38,16,16],[60,14,12,12]].forEach(([bx,by,bw,bh]) => {
+                ctx.fillRect(x+bx*s, y+by*s, bw*s, bh*s);
+            });
+            
             // Head
-            const hg = ctx.createRadialGradient(x+64*s, y+16*s, 3*s, x+64*s, y+18*s, 13*s);
-            hg.addColorStop(0,'#80ffcc'); hg.addColorStop(1,'#007050');
-            ctx.fillStyle = hg;
-            ctx.beginPath(); ctx.ellipse(x+64*s, y+18*s, 13*s, 11*s, -0.3, 0, Math.PI*2); ctx.fill();
-            // Eye
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x+70*s, y+14*s, 4*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#002a18'; ctx.beginPath(); ctx.arc(x+71*s, y+14*s, 2.5*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = 'rgba(0,255,160,0.6)'; ctx.beginPath(); ctx.arc(x+71*s, y+13*s, 1*s, 0, Math.PI*2); ctx.fill();
-            // Glow
-            ctx.fillStyle = 'rgba(0,200,120,0.12)';
-            ctx.beginPath(); ctx.ellipse(x+40*s, y+72*s, 24*s, 7*s, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#60ffcc'; ctx.fillRect(x+58*s, y+8*s, 16*s, 16*s);
+            ctx.fillStyle = '#fff'; ctx.fillRect(x+66*s, y+12*s, p, p);
+            ctx.fillStyle = '#000'; ctx.fillRect(x+67*s, y+13*s, s*2, s*2);
+            
+            // Fins
+            ctx.fillStyle = '#2ab5c7';
+            ctx.fillRect(x+24*s, y+44*s, 12*s, 8*s);
+            ctx.fillRect(x+48*s, y+24*s, 10*s, 6*s);
         },
         galeimp(ctx, x, y, size) {
             const s = size / 80;
-            // Body (lemur-like)
-            const bg = ctx.createRadialGradient(x+40*s, y+46*s, 6*s, x+40*s, y+42*s, 22*s);
-            bg.addColorStop(0,'#c8e8ff'); bg.addColorStop(0.6,'#4090b8'); bg.addColorStop(1,'#001830');
-            ctx.fillStyle = bg;
-            ctx.beginPath(); ctx.ellipse(x+40*s, y+46*s, 18*s, 22*s, 0, 0, Math.PI*2); ctx.fill();
-            // Wings
-            ctx.fillStyle = 'rgba(180,240,255,0.4)';
-            ctx.beginPath();
-            ctx.moveTo(x+22*s, y+40*s);
-            ctx.bezierCurveTo(x+5*s, y+20*s, x+12*s, y+55*s, x+28*s, y+52*s);
-            ctx.closePath(); ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(x+58*s, y+40*s);
-            ctx.bezierCurveTo(x+75*s, y+20*s, x+68*s, y+55*s, x+52*s, y+52*s);
-            ctx.closePath(); ctx.fill();
-            // Tail (stripe)
-            ctx.lineWidth = 5*s; ctx.lineCap = 'round';
-            ctx.strokeStyle = '#fff8a0';
-            ctx.beginPath(); ctx.moveTo(x+40*s, y+65*s); ctx.bezierCurveTo(x+30*s, y+78*s, x+50*s, y+80*s, x+42*s, y+75*s); ctx.stroke();
-            ctx.strokeStyle = '#002040';
-            ctx.beginPath(); ctx.moveTo(x+40*s, y+68*s); ctx.bezierCurveTo(x+32*s, y+78*s, x+48*s, y+80*s, x+42*s, y+76*s); ctx.stroke();
+            const p = s * 4;
+            
+            // Body
+            ctx.fillStyle = '#1a3a5a'; ctx.fillRect(x+30*s, y+30*s, 20*s, 24*s);
+            ctx.fillStyle = '#3a8aaa'; ctx.fillRect(x+32*s, y+32*s, 16*s, 20*s);
+            
+            // Cloud tail
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x+24*s, y+50*s, 32*s, 12*s);
+            ctx.fillRect(x+28*s, y+58*s, 24*s, 8*s);
+            
             // Head
-            const hg = ctx.createRadialGradient(x+40*s, y+24*s, 4*s, x+40*s, y+26*s, 16*s);
-            hg.addColorStop(0,'#d8f0ff'); hg.addColorStop(1,'#2060a0');
-            ctx.fillStyle = hg;
-            ctx.beginPath(); ctx.ellipse(x+40*s, y+26*s, 16*s, 15*s, 0, 0, Math.PI*2); ctx.fill();
-            // Ears
-            ctx.fillStyle = '#3070b0';
-            ctx.beginPath(); ctx.ellipse(x+28*s, y+16*s, 5*s, 9*s, -0.3, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.ellipse(x+52*s, y+16*s, 5*s, 9*s, 0.3, 0, Math.PI*2); ctx.fill();
-            // Eyes
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x+33*s, y+22*s, 5*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x+47*s, y+22*s, 5*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#0a0a20'; ctx.beginPath(); ctx.arc(x+34*s, y+22*s, 3*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#0a0a20'; ctx.beginPath(); ctx.arc(x+48*s, y+22*s, 3*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#f0e040'; ctx.beginPath(); ctx.arc(x+34*s, y+21*s, 1.2*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#f0e040'; ctx.beginPath(); ctx.arc(x+48*s, y+21*s, 1.2*s, 0, Math.PI*2); ctx.fill();
-            // Spark aura
-            ctx.fillStyle = 'rgba(240,224,64,0.15)';
-            ctx.beginPath(); ctx.ellipse(x+40*s, y+70*s, 20*s, 6*s, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#7ec8e3'; ctx.fillRect(x+30*s, y+14*s, 20*s, 18*s);
+            ctx.fillStyle = '#fff'; ctx.fillRect(x+34*s, y+20*s, p, p); ctx.fillRect(x+42*s, y+20*s, p, p);
+            ctx.fillStyle = '#000'; ctx.fillRect(x+35*s, y+21*s, s*2, s*2); ctx.fillRect(x+43*s, y+21*s, s*2, s*2);
+            
+            // Sparkles
+            ctx.fillStyle = '#f0e040';
+            ctx.fillRect(x+20*s, y+20*s, p, p); ctx.fillRect(x+56*s, y+40*s, p, p);
         },
         coralshrimp(ctx, x, y, size) {
             const s = size/80;
@@ -806,32 +771,52 @@ const OverworldEngine = (() => {
     function updateCamera() {
         const cw = canvas.width, ch = canvas.height;
         const mapW = MAP_COLS * TILE_SIZE, mapH = MAP_ROWS * TILE_SIZE;
-        camera.x = Math.max(0, Math.min(mapW - cw, player.px + TILE_SIZE/2 - cw/2));
-        camera.y = Math.max(0, Math.min(mapH - ch, player.py + TILE_SIZE/2 - ch/2));
+        
+        if (mapW > cw) {
+            camera.x = Math.max(0, Math.min(mapW - cw, player.px + TILE_SIZE/2 - cw/2));
+        } else {
+            camera.x = 0;
+        }
+
+        if (mapH > ch) {
+            camera.y = Math.max(0, Math.min(mapH - ch, player.py + TILE_SIZE/2 - ch/2));
+        } else {
+            camera.y = 0;
+        }
     }
 
     // ── RENDER LOOP ──────────────────────────────────────────
     function startLoop() {
         function loop(time) {
             const dt = time - lastTime; lastTime = time;
+            animTimer = time;
             const owActive = document.getElementById('screen-overworld')?.classList.contains('active');
             if (owActive) {
                 processMovement();
                 updatePlayerPosition();
                 updateCamera();
-                render();
+                render(time);
             }
             animFrame = requestAnimationFrame(loop);
         }
         animFrame = requestAnimationFrame(loop);
     }
 
-    function render() {
+    function render(time) {
         if (!ctx || !currentMap) return;
         const cw = canvas.width, ch = canvas.height;
+        const mapW = MAP_COLS * TILE_SIZE, mapH = MAP_ROWS * TILE_SIZE;
+
+        // Calculate centering offsets for monitors larger than the map
+        const offX = mapW < cw ? Math.floor((cw - mapW) / 2) : 0;
+        const offY = mapH < ch ? Math.floor((ch - mapH) / 2) : 0;
+
         ctx.clearRect(0, 0, cw, ch);
         ctx.save();
-        ctx.translate(-camera.x, -camera.y);
+        ctx.translate(offX - camera.x, offY - camera.y);
+
+        // Frame calculation for animated tiles
+        const frameIndex = Math.floor(time / 400) % 4;
 
         // Draw tiles from cache
         const startCol = Math.max(0, Math.floor(camera.x / TILE_SIZE));
@@ -842,9 +827,10 @@ const OverworldEngine = (() => {
         for (let row = startRow; row < endRow; row++) {
             for (let col = startCol; col < endCol; col++) {
                 const tile = currentMap.tiles[row][col];
-                const cached = tileCache && tileCache[tile];
-                if (cached) {
-                    ctx.drawImage(cached, col*TILE_SIZE, row*TILE_SIZE);
+                const tileFrames = tileCache && tileCache[tile];
+                if (tileFrames) {
+                    const f = tileFrames.length > 1 ? frameIndex % tileFrames.length : 0;
+                    ctx.drawImage(tileFrames[f], col*TILE_SIZE, row*TILE_SIZE);
                 } else {
                     ctx.fillStyle = TILE_BASE[tile] || '#111';
                     ctx.fillRect(col*TILE_SIZE, row*TILE_SIZE, TILE_SIZE, TILE_SIZE);
@@ -879,130 +865,48 @@ const OverworldEngine = (() => {
         if (!npcDef) return;
 
         const s = TILE_SIZE / 40;
+        const p = s * 4; // Virtual Pixel size
 
+        // Common blocky body
         if (npc.id === 'prof_maris') {
-            // Professor Maris — researcher with glasses and lab coat
-            // Lab coat body
-            ctx.fillStyle = '#e8eaf0';
-            ctx.beginPath(); ctx.roundRect(px+8*s, py+18*s, 24*s, 16*s, 2*s); ctx.fill();
-            // Shirt under
-            ctx.fillStyle = '#4a8ab0';
-            ctx.fillRect(px+11*s, py+19*s, 18*s, 10*s);
-            // Arms
-            ctx.fillStyle = '#e8eaf0';
-            ctx.fillRect(px+3*s, py+18*s, 7*s, 12*s);
-            ctx.fillRect(px+30*s, py+18*s, 7*s, 12*s);
-            // Hands
+            // Lab coat (blocky)
+            ctx.fillStyle = '#e8eaf0'; ctx.fillRect(px+8*s, py+18*s, 24*s, 18*s);
+            ctx.fillStyle = '#4a8ab0'; ctx.fillRect(px+12*s, py+20*s, 16*s, 12*s);
+            // Skin
             ctx.fillStyle = '#d4a070';
-            ctx.beginPath(); ctx.arc(px+6*s, py+30*s, 3.5*s, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(px+34*s, py+30*s, 3.5*s, 0, Math.PI*2); ctx.fill();
-            // Legs/pants
-            ctx.fillStyle = '#3a5080';
-            ctx.fillRect(px+10*s, py+34*s, 9*s, 9*s);
-            ctx.fillRect(px+21*s, py+34*s, 9*s, 9*s);
-            // Shoes
-            ctx.fillStyle = '#201810';
-            ctx.beginPath(); ctx.roundRect(px+9*s, py+42*s, 11*s, 4*s, 2*s); ctx.fill();
-            ctx.beginPath(); ctx.roundRect(px+20*s, py+42*s, 11*s, 4*s, 2*s); ctx.fill();
-            // Head
-            ctx.fillStyle = '#d4a070';
-            ctx.beginPath(); ctx.ellipse(px+20*s, py+12*s, 10*s, 11*s, 0, 0, Math.PI*2); ctx.fill();
-            // Hair (grey-white, side-parted)
-            ctx.fillStyle = '#c0c0c0';
-            ctx.beginPath(); ctx.ellipse(px+20*s, py+4*s, 10*s, 6*s, 0, Math.PI, Math.PI*2); ctx.fill();
-            ctx.fillRect(px+10*s, py+4*s, 5*s, 6*s);
+            ctx.fillRect(px+14*s, py+6*s, 12*s, 12*s); // Head
+            ctx.fillRect(px+4*s, py+30*s, 4*s, 4*s); // Hands
+            ctx.fillRect(px+32*s, py+30*s, 4*s, 4*s);
+            // Hair
+            ctx.fillStyle = '#c0c0c0'; ctx.fillRect(px+12*s, py+4*s, 16*s, 4*s);
             // Glasses
-            ctx.strokeStyle = '#404040'; ctx.lineWidth = 1.2*s;
-            ctx.strokeRect(px+13*s, py+10*s, 7*s, 5*s);
-            ctx.strokeRect(px+21*s, py+10*s, 7*s, 5*s);
-            ctx.beginPath(); ctx.moveTo(px+20*s, py+12.5*s); ctx.lineTo(px+21*s, py+12.5*s); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(px+13*s, py+12*s); ctx.lineTo(px+10*s, py+11*s); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(px+28*s, py+12*s); ctx.lineTo(px+31*s, py+11*s); ctx.stroke();
-            // Eyes behind glasses
-            ctx.fillStyle = '#204060';
-            ctx.beginPath(); ctx.arc(px+16.5*s, py+12.5*s, 1.5*s, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(px+24.5*s, py+12.5*s, 1.5*s, 0, Math.PI*2); ctx.fill();
-            // Clipboard
-            ctx.fillStyle = '#d0c070'; ctx.fillRect(px+32*s, py+20*s, 8*s, 10*s);
-            ctx.fillStyle = '#404020'; ctx.fillRect(px+33*s, py+22*s, 6*s, 1.5*s);
-            ctx.fillRect(px+33*s, py+25*s, 6*s, 1.5*s); ctx.fillRect(px+33*s, py+28*s, 4*s, 1.5*s);
-
-        } else if (npc.id === 'harbor_guard') {
-            // Guard — armored, stern
-            // Armored body
-            ctx.fillStyle = '#4a5060';
-            ctx.beginPath(); ctx.roundRect(px+7*s, py+18*s, 26*s, 16*s, 2*s); ctx.fill();
-            ctx.fillStyle = '#606878';
-            ctx.fillRect(px+9*s, py+20*s, 22*s, 6*s);
-            // Pauldrons
-            ctx.fillStyle = '#505868';
-            ctx.beginPath(); ctx.arc(px+7*s, py+20*s, 5*s, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(px+33*s, py+20*s, 5*s, 0, Math.PI*2); ctx.fill();
-            // Arms
-            ctx.fillStyle = '#4a5060';
-            ctx.fillRect(px+2*s, py+18*s, 7*s, 14*s);
-            ctx.fillRect(px+31*s, py+18*s, 7*s, 14*s);
+            ctx.fillStyle = '#404040'; ctx.fillRect(px+14*s, py+10*s, 12*s, 2*s);
             // Legs
-            ctx.fillStyle = '#383840';
-            ctx.fillRect(px+9*s, py+34*s, 10*s, 10*s);
-            ctx.fillRect(px+21*s, py+34*s, 10*s, 10*s);
-            ctx.fillStyle = '#201818';
-            ctx.beginPath(); ctx.roundRect(px+8*s, py+43*s, 12*s, 4*s, 2*s); ctx.fill();
-            ctx.beginPath(); ctx.roundRect(px+20*s, py+43*s, 12*s, 4*s, 2*s); ctx.fill();
-            // Head with helmet
-            ctx.fillStyle = '#c8a070'; ctx.beginPath(); ctx.ellipse(px+20*s, py+13*s, 9*s, 9*s, 0, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#505868';
-            ctx.beginPath(); ctx.ellipse(px+20*s, py+8*s, 11*s, 9*s, 0, Math.PI, Math.PI*2); ctx.fill();
-            ctx.fillRect(px+10*s, py+8*s, 20*s, 4*s);
-            // Visor line
-            ctx.strokeStyle = '#808898'; ctx.lineWidth = 1.5*s;
-            ctx.beginPath(); ctx.moveTo(px+11*s, py+14*s); ctx.lineTo(px+29*s, py+14*s); ctx.stroke();
-            // Eyes
-            ctx.fillStyle = '#201810'; ctx.beginPath(); ctx.arc(px+16*s, py+14*s, 2*s, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(px+24*s, py+14*s, 2*s, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#3a5080'; ctx.fillRect(px+10*s, py+36*s, 8*s, 8*s); ctx.fillRect(px+22*s, py+36*s, 8*s, 8*s);
+        } else if (npc.id === 'harbor_guard') {
+            // Armor
+            ctx.fillStyle = '#4a5060'; ctx.fillRect(px+8*s, py+18*s, 24*s, 20*s);
+            ctx.fillStyle = '#606878'; ctx.fillRect(px+10*s, py+20*s, 20*s, 8*s);
+            // Helmet
+            ctx.fillStyle = '#505868'; ctx.fillRect(px+12*s, py+6*s, 16*s, 12*s);
+            ctx.fillStyle = '#c8a070'; ctx.fillRect(px+14*s, py+12*s, 12*s, 4*s); // Face slit
             // Spear
-            ctx.strokeStyle = '#8a7050'; ctx.lineWidth = 2.5*s;
-            ctx.beginPath(); ctx.moveTo(px+36*s, py+2*s); ctx.lineTo(px+36*s, py+46*s); ctx.stroke();
-            ctx.fillStyle = '#a0b8d0'; ctx.beginPath();
-            ctx.moveTo(px+34*s, py+2*s); ctx.lineTo(px+36*s, py+8*s); ctx.lineTo(px+38*s, py+2*s); ctx.closePath(); ctx.fill();
-
+            ctx.fillStyle = '#8a7050'; ctx.fillRect(px+34*s, py+2*s, 2*s, 44*s);
+            ctx.fillStyle = '#a0b8d0'; ctx.fillRect(px+33*s, py+2*s, 4*s, 6*s);
         } else {
-            // Elder Sota — robed elder
             // Robe
-            ctx.fillStyle = '#7a5a30';
-            ctx.beginPath(); ctx.moveTo(px+10*s, py+20*s); ctx.lineTo(px+6*s, py+46*s);
-            ctx.lineTo(px+34*s, py+46*s); ctx.lineTo(px+30*s, py+20*s); ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#9a7a50';
-            ctx.fillRect(px+12*s, py+20*s, 16*s, 10*s);
-            // Arms
-            ctx.fillStyle = '#7a5a30';
-            ctx.fillRect(px+3*s, py+20*s, 8*s, 12*s);
-            ctx.fillRect(px+29*s, py+20*s, 8*s, 12*s);
-            ctx.fillStyle = '#c89060';
-            ctx.beginPath(); ctx.arc(px+7*s, py+32*s, 3.5*s, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(px+33*s, py+32*s, 3.5*s, 0, Math.PI*2); ctx.fill();
-            // Head
-            ctx.fillStyle = '#c89060'; ctx.beginPath(); ctx.ellipse(px+20*s, py+12*s, 9*s, 10*s, 0, 0, Math.PI*2); ctx.fill();
-            // White hair + beard
-            ctx.fillStyle = '#e8e0d0';
-            ctx.beginPath(); ctx.ellipse(px+20*s, py+5*s, 9*s, 5*s, 0, Math.PI, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(px+14*s, py+16*s); ctx.lineTo(px+12*s, py+26*s);
-            ctx.lineTo(px+20*s, py+22*s); ctx.lineTo(px+28*s, py+26*s); ctx.lineTo(px+26*s, py+16*s); ctx.closePath(); ctx.fill();
-            // Eyes
-            ctx.fillStyle = '#402000'; ctx.beginPath(); ctx.arc(px+16*s, py+12*s, 2*s, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(px+24*s, py+12*s, 2*s, 0, Math.PI*2); ctx.fill();
-            // Staff
-            ctx.strokeStyle = '#604020'; ctx.lineWidth = 3*s;
-            ctx.beginPath(); ctx.moveTo(px+34*s, py+0); ctx.lineTo(px+34*s, py+46*s); ctx.stroke();
-            ctx.fillStyle = '#2ab5c7'; ctx.beginPath(); ctx.arc(px+34*s, py+3*s, 4*s, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = 'rgba(42,181,199,0.3)'; ctx.beginPath(); ctx.arc(px+34*s, py+3*s, 7*s, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#7a5a30'; ctx.fillRect(px+10*s, py+18*s, 20*s, 28*s);
+            ctx.fillStyle = '#9a7a50'; ctx.fillRect(px+14*s, py+22*s, 12*s, 12*s);
+            // Head/Beard
+            ctx.fillStyle = '#c89060'; ctx.fillRect(px+14*s, py+8*s, 12*s, 10*s);
+            ctx.fillStyle = '#e8e0d0'; ctx.fillRect(px+12*s, py+6*s, 16*s, 4*s); ctx.fillRect(px+14*s, py+18*s, 12*s, 6*s);
         }
 
-        // Name tag
-        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        // Name tag (blocky)
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
         ctx.fillRect(px, py-16, TILE_SIZE, 14);
         ctx.fillStyle = '#e8b84b';
-        ctx.font = `bold ${7*s}px "Cinzel", serif`;
+        ctx.font = `bold ${8*s}px "Cinzel", serif`;
         ctx.textAlign = 'center';
         ctx.fillText(npcDef.name.split(' ').slice(-1)[0].substring(0, 8), px+TILE_SIZE/2, py-4);
     }
@@ -1015,74 +919,42 @@ const OverworldEngine = (() => {
         const moving = player.moving;
         const facing = player.facing;
 
-        // Leg animation offsets for 4-frame walk cycle
-        const leftLegY  = moving ? [0, -3, 0,  3][frame] : 0;
-        const rightLegY = moving ? [0,  3, 0, -3][frame] : 0;
-        const bobY      = moving ? [0, -2, 0, -1][frame] * s : 0;
-        const armSwingL = moving ? [0,  4, 0, -4][frame] : 0;
-        const armSwingR = moving ? [0, -4, 0,  4][frame] : 0;
+        // Pixel-walk offsets
+        const bobY = moving ? [0, -4, 0, -4][frame] * s : 0;
+        const legH = moving ? [12, 8, 12, 8][frame] * s : 12*s;
 
-        // Shoes
-        ctx.fillStyle = '#201010';
-        ctx.beginPath(); ctx.roundRect(px+9*s, py+40*s+leftLegY*s+bobY, 10*s, 5*s, 2*s); ctx.fill();
-        ctx.beginPath(); ctx.roundRect(px+21*s, py+40*s+rightLegY*s+bobY, 10*s, 5*s, 2*s); ctx.fill();
-
-        // Legs
+        // Legs (Full blocky)
         ctx.fillStyle = '#2a3a6a';
-        ctx.fillRect(px+10*s, py+30*s+bobY, 8*s, 12*s + leftLegY*s);
-        ctx.fillRect(px+22*s, py+30*s+bobY, 8*s, 12*s + rightLegY*s);
+        ctx.fillRect(px+10*s, py+28*s+bobY, 8*s, legH);
+        ctx.fillRect(px+22*s, py+28*s+bobY, 8*s, legH);
 
-        // Body / shirt
-        const bodyG = ctx.createLinearGradient(px+8*s, py+18*s, px+32*s, py+32*s);
-        bodyG.addColorStop(0,'#2a7a50'); bodyG.addColorStop(1,'#184a30');
-        ctx.fillStyle = bodyG;
-        ctx.beginPath(); ctx.roundRect(px+8*s, py+18*s+bobY, 24*s, 14*s, 3*s); ctx.fill();
-
-        // Arms
+        // Body
         ctx.fillStyle = '#2a7a50';
-        ctx.fillRect(px+1*s, py+19*s+bobY+armSwingL*s, 8*s, 12*s);
-        ctx.fillRect(px+31*s, py+19*s+bobY+armSwingR*s, 8*s, 12*s);
-        // Hands
-        ctx.fillStyle = '#d4a070';
-        ctx.beginPath(); ctx.arc(px+5*s, py+31*s+bobY+armSwingL*s, 3.5*s, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(px+35*s, py+31*s+bobY+armSwingR*s, 3.5*s, 0, Math.PI*2); ctx.fill();
-
-        // Neck
-        ctx.fillStyle = '#d4a070'; ctx.fillRect(px+16*s, py+14*s+bobY, 8*s, 6*s);
+        ctx.fillRect(px+8*s, py+16*s+bobY, 24*s, 16*s);
+        
+        // Arms
+        ctx.fillRect(px+2*s, py+18*s+bobY, 6*s, 10*s);
+        ctx.fillRect(px+32*s, py+18*s+bobY, 6*s, 10*s);
 
         // Head
-        const headG = ctx.createRadialGradient(px+20*s, py+9*s, 2*s, px+20*s, py+11*s, 11*s);
-        headG.addColorStop(0,'#e8c880'); headG.addColorStop(1,'#c89050');
-        ctx.fillStyle = headG;
-        ctx.beginPath(); ctx.ellipse(px+20*s, py+11*s+bobY, 11*s, 11*s, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#d4a070';
+        ctx.fillRect(px+14*s, py+4*s+bobY, 12*s, 12*s);
 
         // Hair
         ctx.fillStyle = '#302010';
-        ctx.beginPath(); ctx.ellipse(px+20*s, py+3*s+bobY, 11*s, 6*s, 0, Math.PI, Math.PI*2); ctx.fill();
-        ctx.fillRect(px+9*s, py+3*s+bobY, 5*s, 8*s);
+        ctx.fillRect(px+14*s, py+2*s+bobY, 12*s, 4*s);
+        ctx.fillRect(px+12*s, py+4*s+bobY, 4*s, 8*s);
 
-        // Face (direction-based)
-        ctx.fillStyle = '#1a0800';
-        if (facing === 'down' || facing === 'up') {
-            const eyeY = facing === 'down' ? py+10*s+bobY : py+10*s+bobY;
-            ctx.beginPath(); ctx.arc(px+15*s, eyeY, 2.5*s, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(px+25*s, eyeY, 2.5*s, 0, Math.PI*2); ctx.fill();
-            if (facing === 'down') {
-                ctx.fillStyle = '#c07050';
-                ctx.beginPath(); ctx.arc(px+20*s, py+14*s+bobY, 2*s, 0, Math.PI); ctx.fill();
-            }
+        // Face
+        ctx.fillStyle = '#000';
+        if (facing === 'right') {
+            ctx.fillRect(px+22*s, py+8*s+bobY, 2*s, 2*s);
+        } else if (facing === 'left') {
+            ctx.fillRect(px+16*s, py+8*s+bobY, 2*s, 2*s);
         } else {
-            // Side profile
-            const eyeX = facing === 'right' ? px+24*s : px+16*s;
-            ctx.beginPath(); ctx.arc(eyeX, py+10*s+bobY, 2.5*s, 0, Math.PI*2); ctx.fill();
+            ctx.fillRect(px+17*s, py+8*s+bobY, 2*s, 2*s);
+            ctx.fillRect(px+21*s, py+8*s+bobY, 2*s, 2*s);
         }
-
-        // Backpack
-        ctx.fillStyle = '#8b5a20';
-        ctx.beginPath(); ctx.roundRect(px+9*s, py+18*s+bobY, 7*s, 12*s, 2*s); ctx.fill();
-        ctx.fillStyle = '#a07030';
-        ctx.fillRect(px+10*s, py+20*s+bobY, 5*s, 2*s);
-        ctx.fillRect(px+10*s, py+24*s+bobY, 5*s, 2*s);
     }
 
     // ── PUBLIC ───────────────────────────────────────────────
