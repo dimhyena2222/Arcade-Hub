@@ -458,6 +458,13 @@ const ENCOUNTER_TABLES = {
         { id: 'thorneel',    weight: 7,  minLv: 4, maxLv: 6 },
         { id: 'ashwing',     weight: 3,  minLv: 4, maxLv: 6 },
     ],
+    brinefall_route1: [
+        { id: 'sandpecker',  weight: 30, minLv: 3, maxLv: 6 },
+        { id: 'gravelcrab',  weight: 25, minLv: 4, maxLv: 7 },
+        { id: 'ashwing',     weight: 20, minLv: 4, maxLv: 7 },
+        { id: 'thorneel',    weight: 15, minLv: 5, maxLv: 8 },
+        { id: 'coralshrimp', weight: 10, minLv: 3, maxLv: 5 },
+    ],
     brinefall_village: [],  // no encounters in village
 };
 
@@ -469,9 +476,13 @@ const NPCS = {
         tile: { x: 7, y: 4 },
         sprite: 'npc-maris',
         dialogues: [
-            'The Aether Currents are destabilizing. We need someone to investigate.',
-            'Your journey begins here in Brinefall. The shore is safe enough for now.',
-            'Be careful of the Abyssal Dominion agents. They have been seen near the tide pools.',
+            'Oh — you\'re here! Good. I have a task that cannot wait.',
+            'MISSION: Tide Shard Recovery',
+            'There are three Tide Shards scattered through Brinefall and Route 1.',
+            'Each shard contains a fragment of the Aether Current\'s resonance signature.',
+            'I need them recovered before Solterra agents locate them first.',
+            'Search the tall grass of Route 1. Creatures in that area have been seen carrying shards.',
+            'Defeat or capture enough wild creatures — the shards will surface. I\'m counting on you.',
         ],
     },
     harbor_guard: {
@@ -494,6 +505,25 @@ const NPCS = {
             'The Titans do not hate us. They simply remember a world without us.',
         ],
     },
+    route1_hiker: {
+        id: 'route1_hiker',
+        name: 'Route Hiker',
+        tile: { x: 30, y: 7 },
+        sprite: 'npc-hiker',
+        dialogues: [
+            'Welcome to Route 1 — the Tidepath! Wild creatures lurk in the tall grass.',
+            'I\'ve spotted Sandpeckers and Gravelcrabs out here. Keep your Tide Orbs handy!',
+        ],
+    },
+    route1_sign: {
+        id: 'route1_sign',
+        name: 'Sign',
+        tile: { x: 24, y: 7 },
+        sprite: 'npc-sign',
+        dialogues: [
+            '→ ROUTE 1: TIDEPATH\n  Cindercrag: 2 days east\n  Beware wild creatures!',
+        ],
+    },
 };
 
 // ─── INTRO DIALOGUE ─────────────────────────────────────────
@@ -506,9 +536,17 @@ const INTRO_DIALOGUE = [
     },
     {
         speaker: 'Professor Maris',
-        text: 'I am Professor Maris. Aether researcher, creature conservationist, and — as of this week — deeply concerned person.',
+        text: 'I am Professor Maris. Aether researcher and creature conservationist.',
         bg: 'lab',
         char: 'maris',
+    },
+    {
+        // Gender select step — handled specially in game.js
+        speaker: 'Professor Maris',
+        text: 'Now then — before we begin, I should like to record your details. Are you a boy or a girl?',
+        bg: 'lab',
+        char: 'maris',
+        genderSelect: true,
     },
     {
         speaker: 'Professor Maris',
@@ -527,6 +565,19 @@ const INTRO_DIALOGUE = [
         text: 'Both are wrong. Both will cause catastrophe if left unchecked. I need someone outside their reach to investigate.',
         bg: 'lab',
         char: 'maris',
+    },
+    {
+        speaker: 'Professor Maris',
+        text: 'Before you leave — I have a task for you. Three Tide Shards have scattered across Brinefall and the route east.',
+        bg: 'lab',
+        char: 'maris',
+    },
+    {
+        speaker: 'Professor Maris',
+        text: 'MISSION: Tide Shard Recovery. Find the shards before the Solterra agents do. Battle creatures on Route 1 — the shards will surface.',
+        bg: 'lab',
+        char: 'maris',
+        missionGrant: 'tide_shard_recovery',
     },
     {
         speaker: 'Professor Maris',
@@ -622,6 +673,15 @@ const ITEMS = {
         useInBattle: true,
         useInWorld: true,
         effect: { restoreAet: 40 },
+    },
+    tide_shard: {
+        id: 'tide_shard',
+        name: 'Tide Shard',
+        desc: 'A crystallised fragment of the Aether Current\'s resonance signature. Prof. Maris needs these recovered.',
+        useInBattle: false,
+        useInWorld: false,
+        effect: 'quest',
+        questId: 'tide_shard_recovery',
     },
 };
 

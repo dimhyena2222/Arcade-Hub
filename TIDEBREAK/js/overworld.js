@@ -9,8 +9,8 @@ const OverworldEngine = (() => {
 
     // ── CONSTANTS ─────────────────────────────────────────────
     const TILE_SIZE    = 48;
-    const MAP_COLS     = 28;
-    const MAP_ROWS     = 20;
+    const MAP_COLS     = 40;
+    const MAP_ROWS     = 30;
     const ENCOUNTER_RATE = 0.12;
 
     // ── TILE TYPES ───────────────────────────────────────────
@@ -27,41 +27,61 @@ const OverworldEngine = (() => {
         ROCK:   9,
         FLOWER: 10,
         TREE:   11,
+        ROUTE:  12, // tall grass on a route — encounter zone
+        SIGN:   13, // sign post (solid/interact)
+        TALL:   14, // tall grass (slightly darker than GRASS)
+        FENCE:  15, // wooden fence (solid)
     };
 
-    // ── BRINEFALL MAP (28×20) ────────────────────────────────
+    // ── BRINEFALL MAP (40×30) ────────────────────────────────
+    // Village in cols 0-23 (original shape), Route 1 in cols 24-39 heading east
+    // Route 2 stub heading north from col 13 at rows 0-3
     const MAPS = {
         brinefall: {
             tiles: [
-                [8,8,8,8,8,8,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                [8,8,8,0,0,0,0,0,5,5,5,5,5,5,5,5,5,5,5,5,5,5,0,0,0,0,0,0],
-                [8,8,0,0,5,5,5,5,1,1,1,1,1,1,1,1,1,1,1,1,1,5,5,0,0,0,0,0],
-                [8,0,0,5,1,1,1,1,3,3,3,3,3,3,3,3,3,1,1,1,1,1,5,5,0,0,0,0],
-                [0,0,5,1,1,6,1,1,3,1,1,1,1,11,11,3,1,1,6,1,1,1,1,5,0,0,0,0],
-                [0,5,1,1,1,1,1,1,3,1,1,1,1,1,1,3,1,1,1,1,1,1,1,5,0,0,0,0,0],
-                [0,5,1,1,1,1,1,1,3,1,10,1,1,1,1,3,1,1,1,1,1,6,1,5,0,0,0,0],
-                [0,5,1,6,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,1,1,1,1,5,0,0,0,0],
-                [0,5,1,1,1,1,1,1,1,1,3,1,1,1,1,1,3,1,1,1,1,1,1,5,5,0,0,0],
-                [0,5,1,1,1,1,1,1,1,1,3,1,6,1,1,1,3,1,1,1,1,1,1,1,5,0,0,0],
-                [0,5,1,1,11,11,1,1,1,1,3,1,1,1,1,1,3,1,1,11,11,1,1,1,5,0,0,0],
-                [0,5,1,1,1,1,1,1,2,2,3,2,2,2,2,2,3,2,2,1,1,1,1,1,5,0,0,0],
-                [0,5,1,1,1,1,1,2,2,2,3,2,2,10,2,2,3,2,2,2,1,1,1,1,5,0,0,0],
-                [0,5,1,1,1,1,2,2,2,2,3,2,2,2,2,2,3,2,2,2,2,1,1,1,5,5,0,0],
-                [0,5,5,1,1,1,1,1,1,1,3,1,1,1,1,1,3,1,1,1,1,1,1,5,5,0,0,0],
-                [0,0,5,5,1,1,1,1,1,1,7,1,1,1,1,1,7,1,1,1,1,1,5,5,0,0,0,0],
-                [0,0,0,5,5,1,1,1,1,1,7,1,9,1,1,1,7,1,1,1,9,1,5,5,0,0,0,0],
-                [0,0,0,0,5,5,5,5,5,5,7,5,5,5,5,5,7,5,5,5,5,5,5,0,0,0,0,0],
-                [0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0],
-                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                //  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20  21  22  23 |  24  25  26  27  28  29  30  31  32  33  34  35  36  37  38  39
+                [ 8,  8,  8,  8,  8,  8,  8,  0,  0,  0,  0,  0,  0,  3,  3,  0,  0,  0,  0,  0,  0,  0,  0,  0,  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11], // row 0 — route 2 path from col 13
+                [ 8,  8,  8,  0,  0,  0,  0,  0,  5,  5,  5,  5,  5,  3,  5,  5,  5,  5,  5,  5,  5,  5,  0,  0,  11, 11, 14, 14, 14, 14, 14, 14, 14, 14, 11, 11, 11, 11, 11, 11], // row 1
+                [ 8,  8,  0,  0,  5,  5,  5,  5,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  1,  5,  5,  0,  11, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 11, 11, 11, 11, 11], // row 2
+                [ 8,  0,  0,  5,  1,  1,  1,  1,  3,  3,  3,  3,  3,  3,  3,  3,  3,  1,  1,  1,  1,  1,  5,  5,  14, 14, 14, 12, 12, 12, 12, 12, 14, 14, 14, 14, 11, 11, 11, 11], // row 3
+                [ 0,  0,  5,  1,  1,  6,  1,  1,  3,  1,  1,  1,  1, 11, 11,  3,  1,  1,  6,  1,  1,  1,  1,  5,  14, 14, 12, 12, 12, 12, 12, 12, 12, 14, 14, 14, 14, 11, 11, 11], // row 4
+                [ 0,  5,  1,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  1,  5,  14, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14, 14, 14, 11, 11, 11], // row 5
+                [ 0,  5,  1,  1,  1,  1,  1,  1,  3,  1, 10,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  6,  1,  5,  15, 12, 12, 12, 10, 12, 12, 12, 12, 12, 12, 14, 14, 11, 11, 11], // row 6
+                [ 0,  5,  1,  6,  1,  1,  1,  1,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  1,  1,  1,  1,  5,   3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3, 14, 14, 11, 11, 11], // row 7 — route path
+                [ 0,  5,  1,  1,  1,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  5,  14, 14, 14, 12, 12, 12, 12, 12, 14, 14, 14, 14, 14, 14, 11, 11], // row 8
+                [ 0,  5,  1,  1,  1,  1,  1,  1,  1,  1,  3,  1,  6,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  1,  5,  14, 14, 12, 12, 12, 12, 12, 12, 14, 14, 14, 14, 11, 11, 11], // row 9
+                [ 0,  5,  1,  1, 11, 11,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  3,  1,  1, 11, 11,  1,  1,  1,  5,  14, 12, 12, 12, 12, 12, 12, 12, 12, 14, 14, 14, 11, 11, 11], // row 10
+                [ 0,  5,  1,  1,  1,  1,  1,  1,  2,  2,  3,  2,  2,  2,  2,  2,  3,  2,  2,  1,  1,  1,  1,  1,  5,  14, 14, 12, 12, 12, 12, 12, 14, 14, 14, 14, 11, 11, 11, 11], // row 11
+                [ 0,  5,  1,  1,  1,  1,  1,  2,  2,  2,  3,  2,  2, 10,  2,  2,  3,  2,  2,  2,  1,  1,  1,  1,  5,  14, 14, 14, 12, 12, 12, 14, 14, 14, 14, 11, 11, 11, 11, 11], // row 12
+                [ 0,  5,  1,  1,  1,  1,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  1,  1,  1,  5,   5, 14, 14, 14, 14, 14, 14, 14, 14, 11, 11, 11, 11, 11, 11], // row 13
+                [ 0,  5,  5,  1,  1,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  5,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 14
+                [ 0,  0,  5,  5,  1,  1,  1,  1,  1,  1,  7,  1,  1,  1,  1,  1,  7,  1,  1,  1,  1,  1,  5,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 15
+                [ 0,  0,  0,  5,  5,  1,  1,  1,  1,  1,  7,  1,  9,  1,  1,  1,  7,  1,  1,  1,  9,  1,  5,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 16
+                [ 0,  0,  0,  0,  5,  5,  5,  5,  5,  5,  7,  5,  5,  5,  5,  5,  7,  5,  5,  5,  5,  5,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 17
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  7,  0,  0,  0,  0,  0,  7,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 18
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 19
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 20
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 21
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 22
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 23
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 24
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 25
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 26
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 27
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 28
+                [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 29
             ],
-            encounterZones: [T.GRASS, T.SHORE],
+            encounterZones: [T.GRASS, T.SHORE, T.ROUTE, T.TALL],
             playerStart: { x: 13, y: 12 },
             npcs: [
-                { id: 'prof_maris',   tile: { x: 13, y: 9  } },
-                { id: 'harbor_guard', tile: { x: 10, y: 15 } },
-                { id: 'elder_sota',   tile: { x: 5,  y: 8  } },
+                { id: 'prof_maris',    tile: { x: 13, y: 9  } },
+                { id: 'harbor_guard',  tile: { x: 10, y: 15 } },
+                { id: 'elder_sota',    tile: { x: 5,  y: 8  } },
+                { id: 'route1_hiker',  tile: { x: 30, y: 7  } },
+                { id: 'route1_sign',   tile: { x: 24, y: 7  } },
             ],
             encounterTable: 'brinefall_shore',
+            routeEncounterTable: 'brinefall_route1',
             ambientWeather: ['CLEAR', 'RAIN'],
         },
     };
@@ -81,6 +101,10 @@ const OverworldEngine = (() => {
         [T.ROCK]:  '#555058',
         [T.FLOWER]:'#2c6b3a',
         [T.TREE]:  '#1a4a22',
+        [T.ROUTE]: '#1e5c28',  // darker tall grass on routes
+        [T.SIGN]:  '#6b4a2a',  // wooden sign post
+        [T.TALL]:  '#245230',  // tall grass (encounter)
+        [T.FENCE]: '#7a5a30',  // wooden fence
     };
 
     // Pre-render tile textures to offscreen canvases for performance
@@ -231,6 +255,53 @@ const OverworldEngine = (() => {
                 const sand = '#c8a96a';
                 ox.fillStyle = sand; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
                 ox.fillStyle = wet; ox.fillRect(0, 8*vP, TILE_SIZE, 4*vP);
+                break;
+            }
+            case T.ROUTE: {
+                // Dark tall grass on a route — encounter zone, darker than GRASS
+                const dark  = '#164020';
+                const light = '#2a8050';
+                const mid   = '#1e5828';
+                // Fill base
+                ox.fillStyle = mid; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                // Blade clusters
+                [[1,1],[4,3],[7,1],[2,7],[5,9],[9,5],[10,2],[0,10],[6,6],[3,0],[8,8],[11,4]].forEach(([px,py]) => {
+                    P(px, py, light); P(px, py+1, dark);
+                });
+                break;
+            }
+            case T.TALL: {
+                // Slightly lighter tall grass
+                const dark  = '#1a4d22';
+                const light = '#32a060';
+                ox.fillStyle = '#245230'; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                [[2,0],[5,2],[9,1],[3,6],[7,8],[10,5],[0,4],[6,10],[11,7],[1,9],[4,3],[8,0]].forEach(([px,py]) => {
+                    P(px, py, light); P(px, py+1, dark);
+                });
+                break;
+            }
+            case T.SIGN: {
+                // Wooden sign post
+                const post = '#5a3a10';
+                const board = '#c8a060';
+                const text_line = '#3a2000';
+                ox.fillStyle = post; ox.fillRect(5*vP, 5*vP, 2*vP, 7*vP);   // post
+                ox.fillStyle = board; ox.fillRect(2*vP, 1*vP, 8*vP, 5*vP);  // sign board
+                ox.fillStyle = text_line;
+                ox.fillRect(3*vP, 2*vP, 6*vP, vP);    // text line 1
+                ox.fillRect(3*vP, 4*vP, 4*vP, vP);    // text line 2
+                break;
+            }
+            case T.FENCE: {
+                // Wooden fence — horizontal rails
+                const rail = '#9a7a40';
+                const post = '#7a5a20';
+                ox.fillStyle = post;
+                ox.fillRect(0,    2*vP, vP, 8*vP);   // left post
+                ox.fillRect(11*vP,2*vP, vP, 8*vP);   // right post
+                ox.fillStyle = rail;
+                ox.fillRect(0, 3*vP, TILE_SIZE, vP);   // top rail
+                ox.fillRect(0, 7*vP, TILE_SIZE, vP);   // bottom rail
                 break;
             }
         }
@@ -538,14 +609,14 @@ const OverworldEngine = (() => {
     let canvas, ctx;
     let currentMap = null;
     let player = {
-        x: 13, y: 12,      // tile position
-        px: 13*TILE_SIZE,   // pixel position (interpolated)
+        x: 13, y: 12,
+        px: 13*TILE_SIZE,
         py: 12*TILE_SIZE,
         targetPx: 13*TILE_SIZE,
         targetPy: 12*TILE_SIZE,
         moving: false,
         facing: 'down',
-        walkFrame: 0,       // 0-3 walk cycle
+        walkFrame: 0,       // 0=neutral, 1=left foot fwd, 2=right foot fwd
         walkTimer: 0,
     };
     let camera = { x: 0, y: 0 };
@@ -555,7 +626,7 @@ const OverworldEngine = (() => {
     let animFrame = null;
     let weatherTimer = null;
     let lastTime = 0;
-    const WALK_SPEED = 4;   // pixels per frame
+    const WALK_SPEED = 6;   // pixels per frame — 48px tile crossed in 8 frames (~133ms, GBA-paced)
 
     // ── INIT ─────────────────────────────────────────────────
     function init() {
@@ -606,7 +677,20 @@ const OverworldEngine = (() => {
         const menuEl = document.getElementById('action-menu');
         const menuOpen = menuEl && !menuEl.classList.contains('hidden');
 
-        if (e.key === 'Escape') { e.preventDefault(); toggleActionMenu(); return; }
+        // Alt opens the start menu (Pokémon-style)
+        if (e.key === 'Alt') { e.preventDefault(); Game.toggleStartMenu(); return; }
+
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            // Close start menu first if open
+            const sm = document.getElementById('start-menu');
+            if (sm && !sm.classList.contains('hidden')) { Game.closeStartMenu(); return; }
+            toggleActionMenu();
+            return;
+        }
+
+        const startMenuOpen = document.getElementById('start-menu') && !document.getElementById('start-menu').classList.contains('hidden');
+        if (startMenuOpen) return;
         if (menuOpen) return;
 
         if (inDialogue) {
@@ -624,6 +708,8 @@ const OverworldEngine = (() => {
         if (player.moving || inDialogue) return;
         const menuOpen = document.getElementById('action-menu') && !document.getElementById('action-menu').classList.contains('hidden');
         if (menuOpen) return;
+        const startMenuOpen = document.getElementById('start-menu') && !document.getElementById('start-menu').classList.contains('hidden');
+        if (startMenuOpen) return;
 
         let dx = 0, dy = 0;
         if (keysHeld['ArrowUp']    || keysHeld['w'] || keysHeld['W']) { dy = -1; player.facing = 'up'; }
@@ -639,7 +725,7 @@ const OverworldEngine = (() => {
 
         const tile = currentMap.tiles[ny][nx];
         if (tile === T.WALL || tile === T.HOUSE || tile === T.TREE || tile === T.ROCK ||
-            tile === T.WATER || tile === T.DEEP) return;
+            tile === T.WATER || tile === T.DEEP || tile === T.FENCE) return;
 
         const npcAtTile = currentMap.npcs.find(n => n.tile.x === nx && n.tile.y === ny);
         if (npcAtTile) { startNpcDialogue(npcAtTile.id); return; }
@@ -650,7 +736,8 @@ const OverworldEngine = (() => {
         player.targetPy = ny * TILE_SIZE;
         player.moving = true;
         player.walkTimer++;
-        if (player.walkTimer % 2 === 0) player.walkFrame = (player.walkFrame + 1) % 4;
+        // 3-frame cycle: advance pose every other step for choppy GBA feel
+        player.walkFrame = (player.walkFrame % 2) + 1;  // alternates 1 → 2 → 1 → 2…
 
         // Encounter check
         if (currentMap.encounterZones.includes(tile)) {
@@ -682,20 +769,53 @@ const OverworldEngine = (() => {
 
     // ── ENCOUNTERS ───────────────────────────────────────────
     function triggerWildEncounter() {
-        const wild = createWildEncounter(currentMap.encounterTable);
+        // Pick encounter table based on tile the player is standing on
+        const tile = currentMap.tiles[player.y] && currentMap.tiles[player.y][player.x];
+        let tableId = currentMap.encounterTable;
+        if (tile === T.ROUTE || tile === T.TALL) {
+            tableId = currentMap.routeEncounterTable || tableId;
+        }
+        const wild = createWildEncounter(tableId);
         if (!wild || !Game.state.party.length) return;
         const lead = Game.state.party[0];
-        BattleEngine.startBattle(lead, wild, {
-            weather: Game.state.weather,
-            wildBattle: true,
-            canRun: true,
-            onBattleEnd(result) {
-                if (result === 'lose') {
-                    Game.notify('Your companion fainted...', 'warning');
-                    lead.stats.vit = Math.max(1, Math.floor(lead.stats.maxVit * 0.1));
-                    Game.updatePartyStrip();
-                }
-            },
+
+        // Show centered encounter flash alert, then start battle
+        Game.showEncounterAlert(wild.name, () => {
+            BattleEngine.startBattle(lead, wild, {
+                weather: Game.state.weather,
+                wildBattle: true,
+                canRun: true,
+                onBattleEnd(result) {
+                    if (result === 'lose') {
+                        Game.notify('Your companion fainted...', 'warning');
+                        lead.stats.vit = Math.max(1, Math.floor(lead.stats.maxVit * 0.1));
+                        Game.updatePartyStrip();
+                    } else if (result === 'win' || result === 'capture') {
+                        // Tide Shard drop on Route 1 if mission is active
+                        const gs = Game.state;
+                        const quest = gs.quests && gs.quests.tide_shard_recovery;
+                        const onRoute = (tile === T.ROUTE || tile === T.TALL);
+                        if (quest && quest.active && !quest.complete && onRoute) {
+                            // ~40% drop chance per battle until all 3 shards found
+                            if (Math.random() < 0.4) {
+                                quest.shardsFound = (quest.shardsFound || 0) + 1;
+                                if (!gs.items.tide_shard) gs.items.tide_shard = 0;
+                                gs.items.tide_shard++;
+                                const found = quest.shardsFound;
+                                const req = quest.shardsRequired;
+                                Game.notify(`A Tide Shard surfaced! (${found}/${req})`, 'success');
+                                if (found >= req) {
+                                    quest.complete = true;
+                                    quest.active = false;
+                                    setTimeout(() => {
+                                        Game.notify('All Tide Shards recovered! Return to Prof. Maris.', 'success');
+                                    }, 1800);
+                                }
+                            }
+                        }
+                    }
+                },
+            });
         });
     }
 
@@ -715,7 +835,40 @@ const OverworldEngine = (() => {
         if (!npcData) return;
         inDialogue = true;
         currentNpcId = npcId;
-        dialogueQueue = [...npcData.dialogues];
+
+        // Quest-aware dialogue for Prof Maris
+        let lines = [...npcData.dialogues];
+        if (npcId === 'prof_maris') {
+            const quest = Game.state.quests && Game.state.quests.tide_shard_recovery;
+            if (quest && quest.complete) {
+                lines = [
+                    'You found all three Tide Shards! Extraordinary work.',
+                    'These resonance fragments will allow me to triangulate the Aether Current\'s break point.',
+                    'This changes everything. The next disruption — we may be able to prevent it.',
+                    'Take this — a small token of thanks. Keep your companion close. The journey is far from over.',
+                ];
+            } else if (quest && quest.active && (quest.shardsFound || 0) > 0) {
+                const found = quest.shardsFound;
+                const req   = quest.shardsRequired;
+                lines = [
+                    `Good progress — you've found ${found} of ${req} Tide Shards so far.`,
+                    'Keep battling wild creatures in Route 1\'s tall grass. The remaining shards will surface.',
+                    'Be careful out there.',
+                ];
+            } else if (!quest || !quest.active) {
+                lines = [
+                    'Oh — you\'re here! Good. I have a task that cannot wait.',
+                    'MISSION: Tide Shard Recovery',
+                    'There are three Tide Shards scattered through Brinefall and Route 1.',
+                    'Each shard contains a fragment of the Aether Current\'s resonance signature.',
+                    'I need them recovered before Solterra agents locate them first.',
+                    'Search the tall grass of Route 1. Creatures in that area have been seen carrying shards.',
+                    'Defeat or capture enough wild creatures — the shards will surface. I\'m counting on you.',
+                ];
+            }
+        }
+
+        dialogueQueue = lines;
         showDialogue(npcData.name, dialogueQueue.shift());
     }
 
@@ -893,8 +1046,28 @@ const OverworldEngine = (() => {
             // Spear
             ctx.fillStyle = '#8a7050'; ctx.fillRect(px+34*s, py+2*s, 2*s, 44*s);
             ctx.fillStyle = '#a0b8d0'; ctx.fillRect(px+33*s, py+2*s, 4*s, 6*s);
+        } else if (npc.id === 'route1_sign') {
+            // Sign post — tall wooden post with sign board
+            ctx.fillStyle = '#6b4a1a'; ctx.fillRect(px+20*s, py+10*s, 4*s, 30*s); // post
+            ctx.fillStyle = '#c8a060'; ctx.fillRect(px+8*s,  py+6*s, 24*s, 16*s); // board
+            ctx.fillStyle = '#3a2000';
+            ctx.fillRect(px+10*s, py+9*s,  18*s, 2*s);  // line 1
+            ctx.fillRect(px+10*s, py+13*s, 12*s, 2*s);  // line 2
+            ctx.fillRect(px+10*s, py+17*s, 16*s, 2*s);  // line 3
+        } else if (npc.id === 'route1_hiker') {
+            // Hiker — brown hat, vest, backpack
+            ctx.fillStyle = '#7a4a18'; ctx.fillRect(px+10*s, py+4*s,  20*s, 6*s);  // hat brim
+            ctx.fillStyle = '#5a3010'; ctx.fillRect(px+12*s, py+0,     16*s, 6*s);  // hat top
+            ctx.fillStyle = '#c8a070'; ctx.fillRect(px+14*s, py+8*s,  12*s, 10*s); // face
+            ctx.fillStyle = '#5a7a30'; ctx.fillRect(px+10*s, py+18*s, 20*s, 20*s); // vest/shirt
+            ctx.fillStyle = '#8a9a50'; ctx.fillRect(px+12*s, py+20*s, 16*s, 8*s);  // vest front
+            ctx.fillStyle = '#3a5018'; ctx.fillRect(px+26*s, py+12*s,  8*s, 22*s); // backpack
+            ctx.fillStyle = '#4a2a10'; ctx.fillRect(px+10*s, py+38*s,  8*s, 8*s);  // left leg
+            ctx.fillStyle = '#4a2a10'; ctx.fillRect(px+22*s, py+38*s,  8*s, 8*s);  // right leg
+            ctx.fillStyle = '#3a1a00'; ctx.fillRect(px+10*s, py+44*s,  8*s, 4*s);  // boot L
+            ctx.fillStyle = '#3a1a00'; ctx.fillRect(px+22*s, py+44*s,  8*s, 4*s);  // boot R
         } else {
-            // Robe
+            // Default / elder_sota — Robe
             ctx.fillStyle = '#7a5a30'; ctx.fillRect(px+10*s, py+18*s, 20*s, 28*s);
             ctx.fillStyle = '#9a7a50'; ctx.fillRect(px+14*s, py+22*s, 12*s, 12*s);
             // Head/Beard
@@ -902,58 +1075,173 @@ const OverworldEngine = (() => {
             ctx.fillStyle = '#e8e0d0'; ctx.fillRect(px+12*s, py+6*s, 16*s, 4*s); ctx.fillRect(px+14*s, py+18*s, 12*s, 6*s);
         }
 
-        // Name tag (blocky)
-        ctx.fillStyle = 'rgba(0,0,0,0.85)';
-        ctx.fillRect(px, py-16, TILE_SIZE, 14);
-        ctx.fillStyle = '#e8b84b';
-        ctx.font = `bold ${8*s}px "Cinzel", serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText(npcDef.name.split(' ').slice(-1)[0].substring(0, 8), px+TILE_SIZE/2, py-4);
+        // Name tag (blocky) — skip for sign
+        if (npc.id !== 'route1_sign') {
+            ctx.fillStyle = 'rgba(0,0,0,0.85)';
+            ctx.fillRect(px, py-16, TILE_SIZE, 14);
+            ctx.fillStyle = '#e8b84b';
+            ctx.font = `bold ${8*s}px "Cinzel", serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText(npcDef.name.split(' ').slice(-1)[0].substring(0, 8), px+TILE_SIZE/2, py-4);
+        }
     }
 
     function drawPlayer() {
         const px = player.px;
         const py = player.py;
-        const s = TILE_SIZE / 40;
-        const frame = player.walkFrame;
+        const s = TILE_SIZE / 16;      // 1 virtual pixel = 3px at TILE_SIZE 48
+        const frame = player.walkFrame; // 0=neutral, 1=left-fwd, 2=right-fwd
         const moving = player.moving;
         const facing = player.facing;
+        const gender = (typeof Game !== 'undefined') ? (Game.state.playerGender || 'male') : 'male';
 
-        // Pixel-walk offsets
-        const bobY = moving ? [0, -4, 0, -4][frame] * s : 0;
-        const legH = moving ? [12, 8, 12, 8][frame] * s : 12*s;
+        const P = (ox, oy, w, h, color) => {
+            ctx.fillStyle = color;
+            ctx.fillRect(px + ox*s, py + oy*s, w*s, h*s);
+        };
 
-        // Legs (Full blocky)
-        ctx.fillStyle = '#2a3a6a';
-        ctx.fillRect(px+10*s, py+28*s+bobY, 8*s, legH);
-        ctx.fillRect(px+22*s, py+28*s+bobY, 8*s, legH);
+        if (gender === 'male') {
+            // ── MALE: green-banded cap, navy shirt, black shorts ──
 
-        // Body
-        ctx.fillStyle = '#2a7a50';
-        ctx.fillRect(px+8*s, py+16*s+bobY, 24*s, 16*s);
-        
-        // Arms
-        ctx.fillRect(px+2*s, py+18*s+bobY, 6*s, 10*s);
-        ctx.fillRect(px+32*s, py+18*s+bobY, 6*s, 10*s);
+            // --- Legs (drawn first, body covers upper overlap) ---
+            if (!moving || frame === 0) {
+                // Neutral: both legs level
+                P(2, 10, 5, 5, '#1e1e2e');  // left leg
+                P(9, 10, 5, 5, '#1e1e2e');  // right leg
+                P(2, 14, 5, 1, '#111');      // left shoe
+                P(9, 14, 5, 1, '#111');      // right shoe
+            } else if (frame === 1) {
+                // Left foot forward
+                P(2, 11, 5, 4, '#1e1e2e');  P(2, 14, 5, 1, '#111');  // left forward
+                P(9,  9, 5, 5, '#2e2e3e');  P(9, 13, 5, 1, '#0a0a0a'); // right back
+            } else {
+                // Right foot forward
+                P(2,  9, 5, 5, '#2e2e3e');  P(2, 13, 5, 1, '#0a0a0a'); // left back
+                P(9, 11, 5, 4, '#1e1e2e');  P(9, 14, 5, 1, '#111');    // right forward
+            }
 
-        // Head
-        ctx.fillStyle = '#d4a070';
-        ctx.fillRect(px+14*s, py+4*s+bobY, 12*s, 12*s);
+            // Shorts divider line
+            P(2, 10, 12, 1, '#111');
 
-        // Hair
-        ctx.fillStyle = '#302010';
-        ctx.fillRect(px+14*s, py+2*s+bobY, 12*s, 4*s);
-        ctx.fillRect(px+12*s, py+4*s+bobY, 4*s, 8*s);
+            // Shirt body (navy)
+            P(2,  7, 12, 4, '#1a2a4a');
+            // Shirt collar accent (teal stripe at shoulder)
+            P(2,  7, 12, 1, '#2ab5c7');
 
-        // Face
-        ctx.fillStyle = '#000';
-        if (facing === 'right') {
-            ctx.fillRect(px+22*s, py+8*s+bobY, 2*s, 2*s);
-        } else if (facing === 'left') {
-            ctx.fillRect(px+16*s, py+8*s+bobY, 2*s, 2*s);
+            // Backpack (shown on left side of body for down/up)
+            if (facing !== 'left' && facing !== 'right') {
+                P(1, 7, 2, 5, '#3a7a40');   // left-side pack
+                P(1, 7, 2, 1, '#5aaa60');   // pack highlight
+            }
+
+            // Arms (skin tone, slightly inset from edge)
+            P(1,  8, 2, 3, '#d4a070');   // left arm
+            P(13, 8, 2, 3, '#d4a070');   // right arm
+            // Cuffs
+            P(1,  10, 2, 1, '#1a2a4a');
+            P(13, 10, 2, 1, '#1a2a4a');
+
+            // Neck
+            P(6, 6, 4, 2, '#d4a070');
+
+            // Head (skin)
+            P(3, 1, 10, 5, '#d4a070');
+            // Ear dots
+            P(3, 3, 1, 1, '#c09060');
+            P(12, 3, 1, 1, '#c09060');
+
+            // Face
+            if (facing === 'down') {
+                P(5, 3, 2, 1, '#222');   // left eye
+                P(9, 3, 2, 1, '#222');   // right eye
+                P(7, 4, 2, 1, '#b87050'); // mouth
+            } else if (facing === 'left') {
+                P(3, 3, 2, 1, '#222');
+                P(3, 4, 1, 1, '#b87050');
+            } else if (facing === 'right') {
+                P(11, 3, 2, 1, '#222');
+                P(12, 4, 1, 1, '#b87050');
+            }
+            // (up = back of head, no face)
+
+            // Cap — green band + white front panel + dark visor brim
+            P(2, 0, 12, 3, '#3a8a45');   // green cap band
+            P(4, 0,  5, 3, '#eaeaea');   // white front panel
+            P(4, 0,  5, 1, '#ffffff');   // highlight on white
+            P(1, 2, 14, 1, '#222');      // brim underside (dark strip)
+            P(0, 1,  2, 1, '#2a6a32');   // left cap side
+            P(14,1,  2, 1, '#2a6a32');   // right cap side
+            // Cap button
+            P(7, 0, 2, 1, '#3a8a45');
+
         } else {
-            ctx.fillRect(px+17*s, py+8*s+bobY, 2*s, 2*s);
-            ctx.fillRect(px+21*s, py+8*s+bobY, 2*s, 2*s);
+            // ── FEMALE: white hair clip, red top, black shorts ──
+
+            // --- Legs ---
+            if (!moving || frame === 0) {
+                P(3, 10, 4, 5, '#111');   // left leg
+                P(9, 10, 4, 5, '#111');   // right leg
+                P(3, 14, 4, 1, '#333');   // left shoe
+                P(9, 14, 4, 1, '#333');   // right shoe
+            } else if (frame === 1) {
+                P(3, 11, 4, 4, '#111');   P(3, 14, 4, 1, '#333');  // left forward
+                P(9,  9, 4, 5, '#1e1e1e'); P(9, 13, 4, 1, '#222'); // right back
+            } else {
+                P(3,  9, 4, 5, '#1e1e1e'); P(3, 13, 4, 1, '#222'); // left back
+                P(9, 11, 4, 4, '#111');   P(9, 14, 4, 1, '#333');  // right forward
+            }
+
+            // Shorts divider
+            P(3, 10, 10, 1, '#080808');
+
+            // Top (red, sleeveless — slightly narrower than body)
+            P(3, 7, 10, 4, '#b81818');
+            // Neckline V
+            P(6, 7, 4, 1, '#cc2828');
+            P(7, 6, 2, 1, '#d4a070');   // skin showing at neckline
+
+            // Arms (bare skin, slender)
+            P(1, 7, 3, 4, '#d4a070');   // left arm
+            P(12,7, 3, 4, '#d4a070');   // right arm
+            P(1, 10,3, 1, '#c09060');   // arm shadow
+            P(12,10,3, 1, '#c09060');
+
+            // Neck
+            P(6, 5, 4, 2, '#d4a070');
+
+            // Head
+            P(3, 1, 10, 5, '#d4a070');
+            // Ear dots
+            P(3, 3, 1, 1, '#c09060');
+            P(12,3, 1, 1, '#c09060');
+
+            // Face
+            if (facing === 'down') {
+                P(5, 3, 2, 1, '#222');
+                P(9, 3, 2, 1, '#222');
+                P(7, 4, 2, 1, '#b87050');
+            } else if (facing === 'left') {
+                P(3, 3, 2, 1, '#222');
+                P(3, 4, 1, 1, '#b87050');
+            } else if (facing === 'right') {
+                P(11, 3, 2, 1, '#222');
+                P(12, 4, 1, 1, '#b87050');
+            }
+
+            // Hair (dark brown base, visible around headband)
+            P(3, 2, 10, 1, '#3a1e08');   // hair above headband
+            P(3, 5,  3, 2, '#3a1e08');   // left side bangs
+            P(10,5,  3, 2, '#3a1e08');   // right side bangs
+            // Hair back (up/side directions show more hair)
+            if (facing === 'up' || facing === 'left' || facing === 'right') {
+                P(3, 5, 10, 1, '#3a1e08');
+            }
+
+            // Headband (white clip-style, sits at y=1)
+            P(2, 1, 12, 2, '#f0f0f0');   // white headband
+            P(7, 0,  2, 1, '#e0e0e0');   // top of clip
+            P(2, 1,  1, 2, '#d0d0d0');   // left shadow
+            P(13,1,  1, 2, '#d0d0d0');   // right shadow
         }
     }
 

@@ -37,11 +37,31 @@
 <div id="screen-intro" class="screen">
     <div class="dialogue-scene" id="intro-scene">
         <div class="scene-bg" id="scene-bg"></div>
-        <div class="scene-character" id="scene-char"></div>
-        <div class="dialogue-box">
-            <div class="dialogue-speaker" id="dlg-speaker"></div>
-            <div class="dialogue-text" id="dlg-text"></div>
-            <div class="dialogue-hint">▼ Click to continue</div>
+        <!-- Prof Maris pixel canvas -->
+        <canvas id="intro-maris-canvas" width="160" height="280"></canvas>
+        <!-- Gender select overlay -->
+        <div id="gender-select-overlay" class="gender-select-overlay hidden">
+            <div class="gender-select-box">
+                <div class="gender-select-title">Are you a boy or a girl?</div>
+                <div class="gender-select-btns">
+                    <button class="gender-btn" onclick="Game.selectGender('male')">
+                        <div class="gender-sprite gender-male"></div>
+                        <span>BOY</span>
+                    </button>
+                    <button class="gender-btn" onclick="Game.selectGender('female')">
+                        <div class="gender-sprite gender-female"></div>
+                        <span>GIRL</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Pokémon-style dialogue box -->
+        <div class="poke-dialogue-box" id="poke-dlg-box">
+            <div class="poke-dialogue-inner">
+                <div class="poke-dlg-speaker" id="dlg-speaker"></div>
+                <div class="poke-dlg-text" id="dlg-text"></div>
+            </div>
+            <div class="poke-dlg-arrow" id="dlg-arrow">▼</div>
         </div>
     </div>
 </div>
@@ -128,6 +148,15 @@
         <div class="dialogue-hint">▼ Click or Z to continue</div>
     </div>
 
+    <!-- Wild Encounter Alert (full-screen flash) -->
+    <div id="encounter-alert" class="encounter-alert hidden">
+        <div class="encounter-alert-inner">
+            <div class="encounter-alert-line1">A wild</div>
+            <div class="encounter-alert-name" id="encounter-alert-name">???</div>
+            <div class="encounter-alert-line2">appeared!</div>
+        </div>
+    </div>
+
     <!-- Action Menu (Escape Menu) -->
     <div id="action-menu" class="action-menu hidden">
         <div class="action-menu-title">MENU</div>
@@ -136,6 +165,43 @@
         <button onclick="Game.openMenu('map'); Game.playSound('select')">🗺 MAP</button>
         <button onclick="Game.openMenu('options'); Game.playSound('select')">⚙ OPTIONS</button>
         <button class="action-menu-close" onclick="Game.closeEscapeMenu(); Game.playSound('back')">✕ CLOSE</button>
+    </div>
+
+    <!-- ALT Start Menu (Pokémon Emerald-style) -->
+    <div id="start-menu" class="start-menu hidden">
+        <div class="sm-header">
+            <div class="sm-player-name" id="sm-player-name">WARDEN</div>
+            <div class="sm-location-row"><span class="sm-loc-label">📍</span><span id="sm-location">Brinefall Village</span></div>
+            <div class="sm-time-row"><span class="sm-time-label">🕐</span><span id="sm-time">00:00</span></div>
+        </div>
+        <div class="sm-sections">
+            <!-- BAG -->
+            <div class="sm-section">
+                <div class="sm-section-title">💼 BAG</div>
+                <div class="sm-bag-list" id="sm-bag-list"></div>
+                <button class="sm-section-btn" onclick="Game.openMenu('team'); Game.closeStartMenu();">OPEN BAG ›</button>
+            </div>
+            <!-- TEAM -->
+            <div class="sm-section">
+                <div class="sm-section-title">🌊 TEAM</div>
+                <div class="sm-team-list" id="sm-team-list"></div>
+                <button class="sm-section-btn" onclick="Game.openMenu('team'); Game.closeStartMenu();">VIEW TEAM ›</button>
+            </div>
+            <!-- GODEX -->
+            <div class="sm-section sm-section-godex">
+                <div class="sm-section-title">📖 GODEX</div>
+                <div class="sm-godex-row">
+                    <span class="sm-godex-label">Registered</span>
+                    <span class="sm-godex-count" id="sm-godex-count">0 / 13</span>
+                </div>
+                <button class="sm-section-btn" onclick="Game.openMenu('codex'); Game.closeStartMenu();">OPEN GODEX ›</button>
+            </div>
+        </div>
+        <div class="sm-footer">
+            <button class="sm-footer-btn" onclick="Game.openMenu('map'); Game.closeStartMenu();">🗺 MAP</button>
+            <button class="sm-footer-btn" onclick="Game.openMenu('options'); Game.closeStartMenu();">⚙ OPTIONS</button>
+            <button class="sm-footer-btn sm-close-btn" onclick="Game.closeStartMenu()">✕ CLOSE</button>
+        </div>
     </div>
 </div>
 

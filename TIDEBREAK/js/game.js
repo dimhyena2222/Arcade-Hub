@@ -15,6 +15,7 @@ const Game = (() => {
 
         // Player
         playerName: 'Warden',
+        playerGender: 'male',  // 'male' | 'female'
 
         // Party (array of live creature instances, max 6)
         party: [],
@@ -24,9 +25,9 @@ const Game = (() => {
 
         // Inventory
         items: {
-            tide_orb: 5,
-            reef_salve: 3,
-            storm_draft: 2,
+            tide_orb:    2,
+            reef_salve:  0,
+            storm_draft: 0,
         },
 
         // World
@@ -49,6 +50,17 @@ const Game = (() => {
             starterChosen: false,
             ch1_guardTalked: false,
             ch1_marisQuestStarted: false,
+            mission_tide_shard_recovery: false,
+        },
+
+        // Quest progress
+        quests: {
+            tide_shard_recovery: {
+                active: false,
+                shardsFound: 0,
+                shardsRequired: 3,
+                complete: false,
+            },
         },
 
         // Dialogue state
@@ -259,10 +271,129 @@ const Game = (() => {
         setTimeout(runIntroDialogue, 260);
     }
 
+    // ── PROF MARIS CANVAS RENDER ─────────────────────────────
+    let _marisMouthOpen = false;
+    let _marisAnimId = null;
+
+    function _drawMarisCanvas(mouthOpen) {
+        const canvas = document.getElementById('intro-maris-canvas');
+        if (!canvas) return;
+        const cx = canvas.getContext('2d');
+        cx.clearRect(0, 0, 160, 280);
+
+        // All coordinates on a 160×280 pixel canvas — pixelated blocky style
+        const P = (x, y, w, h, color) => { cx.fillStyle = color; cx.fillRect(x, y, w, h); };
+
+        // ── Legs (dark slacks) ──
+        P(44, 200, 28, 60, '#2a3060'); // left leg
+        P(88, 200, 28, 60, '#2a3060'); // right leg
+        P(40, 248, 34,  8, '#1a1830'); // shoes
+        P(86, 248, 34,  8, '#1a1830');
+
+        // ── Lab coat body (white) ──
+        P(28, 120, 104, 88, '#e8eaf0');
+        // ── Coat shading sides ──
+        P(28, 120, 10, 88, '#c8cad0');
+        P(122, 120, 10, 88, '#c8cad0');
+        // ── Shirt underneath (light blue) ──
+        P(50, 128, 60, 56, '#5a9ac8');
+        // ── Coat lapels ──
+        P(50, 120, 12, 36, '#d0d2d8');
+        P(98, 120, 12, 36, '#d0d2d8');
+
+        // ── Arms / coat sleeves ──
+        P(8,  124, 24, 68, '#e8eaf0'); // left sleeve
+        P(128, 124, 24, 68, '#e8eaf0'); // right sleeve
+        P(8,  124, 6,  68, '#c8cad0'); // shading
+        P(146, 124, 6,  68, '#c8cad0');
+        // ── Hands (skin) ──
+        P(8,   188, 20, 16, '#d4a870');
+        P(132,  188, 20, 16, '#d4a870');
+
+        // ── Neck ──
+        P(68, 104, 24, 20, '#d4a870');
+
+        // ── Head (skin tone) ──
+        P(40,  32, 80, 76, '#d4a870');
+        // ── Head shading ──
+        P(40,  32,  8, 76, '#b88a50');
+        P(112,  32,  8, 76, '#b88a50');
+
+        // ── Hair (grey, side-parted pixel style) ──
+        P(40,  16, 80, 24, '#b0b0b0');  // top
+        P(40,  16,  8, 40, '#909090');  // left side
+        P(112, 16,  8, 32, '#909090');  // right side
+
+        // ── Glasses frame ──
+        P(48, 64, 22, 4, '#303030'); // left frame top
+        P(48, 80, 22, 4, '#303030'); // left frame bot
+        P(48, 64,  4, 20, '#303030'); // left outer
+        P(66, 64,  4, 20, '#303030'); // left inner
+        P(90, 64, 22, 4, '#303030'); // right frame top
+        P(90, 80, 22, 4, '#303030'); // right frame bot
+        P(90, 64,  4, 20, '#303030'); // right outer
+        P(108,64,  4, 20, '#303030'); // right inner
+        P(70, 68, 20, 4, '#303030');  // bridge
+
+        // ── Eyes (behind glasses) ──
+        P(52, 68, 10, 8, '#fafafa'); // left white
+        P(94, 68, 10, 8, '#fafafa'); // right white
+        P(56, 70,  6, 4, '#203860'); // left iris
+        P(98, 70,  6, 4, '#203860'); // right iris
+        P(58, 71,  2, 2, '#000');    // left pupil
+        P(100,71,  2, 2, '#000');    // right pupil
+
+        // ── Eyebrows ──
+        P(50, 58, 18, 4, '#888');
+        P(92, 58, 18, 4, '#888');
+
+        // ── Nose ──
+        P(74, 78,  8, 8, '#b88a50');
+        P(70, 84,  4, 4, '#b88a50');
+        P(86, 84,  4, 4, '#b88a50');
+
+        // ── Mouth (choppy open/closed) ──
+        if (mouthOpen) {
+            P(64, 96, 32, 10, '#1a0800'); // open mouth
+            P(66, 98, 28,  4, '#c87060'); // tongue/gum
+        } else {
+            P(64, 97, 32,  5, '#1a0800'); // closed line
+        }
+
+        // ── Clipboard in right hand ──
+        P(128, 148, 32, 44, '#ddc86a'); // clipboard board
+        P(144, 142,  8,  8, '#888');    // clip
+        P(132, 156, 24,  4, '#555');    // line 1
+        P(132, 164, 24,  4, '#555');    // line 2
+        P(132, 172, 18,  4, '#555');    // line 3
+    }
+
+    function _startMarisAnimation() {
+        _stopMarisAnimation();
+        let t = 0;
+        function tick() {
+            t++;
+            // Toggle mouth every ~10 frames (~170ms) for choppy look
+            if (t % 6 === 0) {
+                _marisMouthOpen = !_marisMouthOpen;
+                _drawMarisCanvas(_marisMouthOpen);
+            }
+            _marisAnimId = requestAnimationFrame(tick);
+        }
+        _marisAnimId = requestAnimationFrame(tick);
+    }
+
+    function _stopMarisAnimation() {
+        if (_marisAnimId) { cancelAnimationFrame(_marisAnimId); _marisAnimId = null; }
+        _marisMouthOpen = false;
+        _drawMarisCanvas(false);
+    }
+
     // ── INTRO DIALOGUE RUNNER ────────────────────────────────
     function runIntroDialogue() {
         const line = INTRO_DIALOGUE[state.introIndex];
         if (!line) {
+            _stopMarisAnimation();
             showScreen('screen-starter');
             return;
         }
@@ -270,29 +401,64 @@ const Game = (() => {
         const speakerEl = document.getElementById('dlg-speaker');
         const textEl    = document.getElementById('dlg-text');
         const bgEl      = document.getElementById('scene-bg');
-        const charEl    = document.getElementById('scene-char');
+        const arrowEl   = document.getElementById('dlg-arrow');
 
-        if (speakerEl) speakerEl.textContent = line.speaker;
-        if (textEl)    textEl.textContent    = line.text;
+        if (speakerEl) speakerEl.textContent = line.speaker || '';
+        if (textEl)    textEl.textContent    = line.text || '';
         if (bgEl)      bgEl.className        = 'scene-bg bg-' + (line.bg || 'lab');
-        if (charEl)    charEl.className      = 'scene-character char-' + (line.char || 'maris');
 
-        const scene = document.getElementById('intro-scene');
-        if (scene) {
-            scene.onclick = null;
-            scene.onclick = advanceIntro;
+        // Draw Maris and start mouth animation
+        _drawMarisCanvas(false);
+        _startMarisAnimation();
+
+        // Show/hide gender select
+        const genderOverlay = document.getElementById('gender-select-overlay');
+        const dlgBox = document.getElementById('poke-dlg-box');
+        if (line.genderSelect) {
+            if (genderOverlay) genderOverlay.classList.remove('hidden');
+            if (arrowEl) arrowEl.style.display = 'none';
+            // Don't hook click advance on this step
+            const scene = document.getElementById('intro-scene');
+            if (scene) scene.onclick = null;
+        } else {
+            if (genderOverlay) genderOverlay.classList.add('hidden');
+            if (arrowEl) arrowEl.style.display = '';
+            const scene = document.getElementById('intro-scene');
+            if (scene) {
+                scene.onclick = null;
+                scene.onclick = advanceIntro;
+            }
         }
     }
 
     function advanceIntro() {
         playSound('select');
+        // Check if the current line grants a mission before advancing
+        const currentLine = INTRO_DIALOGUE[state.introIndex];
+        if (currentLine && currentLine.missionGrant) {
+            state.flags['mission_' + currentLine.missionGrant] = true;
+            if (state.quests[currentLine.missionGrant]) {
+                state.quests[currentLine.missionGrant].active = true;
+            }
+        }
         state.introIndex++;
         const line = INTRO_DIALOGUE[state.introIndex];
         if (!line || line.transition === 'starter') {
             state.flags.introComplete = true;
+            _stopMarisAnimation();
             showScreen('screen-starter');
             return;
         }
+        runIntroDialogue();
+    }
+
+    function selectGender(gender) {
+        playSound('select');
+        state.playerGender = gender;
+        const overlay = document.getElementById('gender-select-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        // Advance past the gender select line
+        state.introIndex++;
         runIntroDialogue();
     }
 
@@ -736,6 +902,144 @@ const Game = (() => {
         }, 3000);
     }
 
+    // ── ENCOUNTER FLASH ALERT ────────────────────────────────
+    function showEncounterAlert(creatureName, callback) {
+        playSound('encounter');
+        let alert = document.getElementById('encounter-alert');
+        if (!alert) return callback();  // fallback: just start battle
+
+        const nameEl = alert.querySelector('#encounter-alert-name');
+        if (nameEl) nameEl.textContent = creatureName;
+
+        alert.classList.remove('hidden');
+        alert.classList.add('encounter-alert-show');
+
+        // Flash 3 times then call back
+        setTimeout(() => {
+            alert.classList.remove('encounter-alert-show');
+            alert.classList.add('hidden');
+            callback();
+        }, 900);
+    }
+
+    // ── START MENU (ALT key) ─────────────────────────────────
+    let _startMenuOpen = false;
+
+    function toggleStartMenu() {
+        const menu = document.getElementById('start-menu');
+        if (!menu) return;
+        if (_startMenuOpen) {
+            _closeStartMenu();
+        } else {
+            _openStartMenu();
+        }
+    }
+
+    function _openStartMenu() {
+        _startMenuOpen = true;
+        playSound('select');
+        _renderStartMenu();
+        const menu = document.getElementById('start-menu');
+        if (!menu) return;
+        // Update player name
+        const nameEl = document.getElementById('sm-player-name');
+        if (nameEl) nameEl.textContent = state.playerName.toUpperCase();
+        menu.classList.remove('hidden');
+        requestAnimationFrame(() => menu.classList.add('start-menu-open'));
+    }
+
+    function _closeStartMenu() {
+        _startMenuOpen = false;
+        playSound('back');
+        const menu = document.getElementById('start-menu');
+        if (!menu) return;
+        menu.classList.remove('start-menu-open');
+        setTimeout(() => menu.classList.add('hidden'), 180);
+    }
+
+    function _renderStartMenu() {
+        // Bag section
+        const bagList = document.getElementById('sm-bag-list');
+        if (bagList) {
+            bagList.innerHTML = '';
+            const bagSections = [
+                { key: 'capture',  label: 'CAPTURE DEVICES', ids: ['tide_orb'] },
+                { key: 'recovery', label: 'RECOVERY',        ids: ['reef_salve', 'storm_draft'] },
+                { key: 'quest',    label: 'QUEST ITEMS',     ids: ['tide_shard'] },
+            ];
+            let anyShown = false;
+            bagSections.forEach(section => {
+                const secItems = section.ids.filter(id => (state.items[id] || 0) > 0);
+                if (secItems.length === 0) return;
+                anyShown = true;
+                const hdr = document.createElement('div');
+                hdr.className = 'sm-bag-section';
+                hdr.textContent = section.label;
+                bagList.appendChild(hdr);
+                secItems.forEach(id => {
+                    const def = ITEMS[id];
+                    if (!def) return;
+                    const row = document.createElement('div');
+                    row.className = 'sm-bag-item';
+                    // For quest items, show progress alongside count
+                    let extra = '';
+                    if (id === 'tide_shard') {
+                        const q = state.quests && state.quests.tide_shard_recovery;
+                        if (q) {
+                            const status = q.complete ? ' ✓' : ` (${q.shardsFound}/${q.shardsRequired})`;
+                            extra = `<span class="sm-item-quest">${status}</span>`;
+                        }
+                    }
+                    row.innerHTML = `<span class="sm-item-name">${def.name}</span>${extra}<span class="sm-item-count">×${state.items[id]}</span>`;
+                    bagList.appendChild(row);
+                });
+            });
+            if (!anyShown) {
+                bagList.innerHTML = '<div class="sm-empty">Bag is empty.</div>';
+            }
+        }
+
+        // Team section
+        const teamList = document.getElementById('sm-team-list');
+        if (teamList) {
+            teamList.innerHTML = '';
+            if (state.party.length === 0) {
+                teamList.innerHTML = '<div class="sm-empty">No companions.</div>';
+            } else {
+                state.party.forEach((c, i) => {
+                    const pct = Math.round((c.stats.vit / c.stats.maxVit) * 100);
+                    const color = pct < 25 ? '#e05555' : pct < 50 ? '#e8b84b' : '#55c3a8';
+                    const row = document.createElement('div');
+                    row.className = 'sm-team-row';
+                    row.innerHTML = `
+                        <span class="sm-team-lead">${i === 0 ? '★' : '·'}</span>
+                        <span class="sm-team-name">${c.name}</span>
+                        <span class="sm-team-lv">Lv.${c.level}</span>
+                        <div class="sm-team-bar"><div style="width:${pct}%;background:${color}"></div></div>
+                        <span class="sm-team-hp">${c.stats.vit}/${c.stats.maxVit}</span>
+                    `;
+                    row.addEventListener('click', () => { _closeStartMenu(); showCreatureDetail(c); });
+                    teamList.appendChild(row);
+                });
+            }
+        }
+
+        // Godex count
+        const godexCount = document.getElementById('sm-godex-count');
+        if (godexCount) godexCount.textContent = state.codex.size + ' / ' + Object.keys(CREATURE_DEFS).length;
+
+        // Location
+        const locEl = document.getElementById('sm-location');
+        if (locEl) locEl.textContent = REGIONS[state.currentRegion]?.name || state.currentRegion;
+
+        // Time
+        const timeEl = document.getElementById('sm-time');
+        if (timeEl) {
+            const now = new Date();
+            timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+    }
+
     // ── INIT ON LOAD ─────────────────────────────────────────
     window.addEventListener('DOMContentLoaded', () => {
         // Nothing to restore — no save system
@@ -750,6 +1054,7 @@ const Game = (() => {
         closeEscapeMenu,
         startNewGame,
         selectStarter,
+        selectGender,
         openMenu,
         notify,
         setBattleStatus,
@@ -762,6 +1067,9 @@ const Game = (() => {
         cycleOption,
         showCreatureDetail,
         closeCreatureDetail,
+        showEncounterAlert,
+        toggleStartMenu,
+        closeStartMenu: _closeStartMenu,
 
         // Expose battle sub-object so HTML onclick="Game.battle.X()" works
         get battle() { return BattleEngine; },
