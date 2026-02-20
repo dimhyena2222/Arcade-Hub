@@ -524,6 +524,31 @@ const NPCS = {
             '→ ROUTE 1: TIDEPATH\n  Cindercrag: 2 days east\n  Beware wild creatures!',
         ],
     },
+    tidecenter_nurse: {
+        id: 'tidecenter_nurse',
+        name: 'Nurse Cora',
+        sprite: 'npc-nurse',
+        dialogues: [
+            'Welcome to the Tidecenter! Your companions can rest here any time.',
+            'Would you like me to place your creatures in the Restoration Chamber?',
+        ],
+        dialogues_rest: [
+            'Placing your companions in the Restoration Chamber now...',
+            '...',
+            'All done! Your companions are fully restored and ready to battle!',
+        ],
+        dialogues_after: [
+            'Your companions are all healthy! Come back any time you need to rest.',
+        ],
+    },
+    tidecenter_pc: {
+        id: 'tidecenter_pc',
+        name: 'TIDEBREAK PC',
+        sprite: 'npc-pc',
+        dialogues: [
+            'TIDEBREAK PC — Bonded Creature Storage System',
+        ],
+    },
 };
 
 // ─── INTRO DIALOGUE ─────────────────────────────────────────

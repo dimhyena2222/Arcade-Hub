@@ -63,6 +63,18 @@ const Game = (() => {
             },
         },
 
+        // PC Storage (creature boxes)
+        pc: [],   // array of creature instances stored in the PC
+
+        // Player stats (tracking)
+        stats: {
+            stepsWalked:     0,
+            creaturesCaught: 0,
+            battlesWon:      0,
+            battlesLost:     0,
+            blackouts:       0,
+        },
+
         // Dialogue state
         introIndex: 0,
     });
@@ -763,6 +775,7 @@ const Game = (() => {
         }
         state.party.push(creature);
         state.codex.add(creature.defId);
+        if (state.stats) state.stats.creaturesCaught++;
         playSound('capture');
         notify(`${creature.name} joined your party!`, 'success');
         updatePartyStrip();
@@ -1045,6 +1058,301 @@ const Game = (() => {
         // Nothing to restore — no save system
     });
 
+    // ── BLACKOUT (full party KO) ─────────────────────────────
+    function blackout() {
+        state.stats.blackouts++;
+        state.stats.battlesLost++;
+        const overlay = document.getElementById('screen-transition');
+        if (overlay) {
+            overlay.style.background = '#000';
+            overlay.style.opacity = '1';
+            overlay.style.pointerEvents = 'all';
+        }
+        playSound('back');
+        // Heal all party members, then enter Tidecenter interior
+        setTimeout(() => {
+            _healPartyFull();
+            notify('You blacked out... and woke up at the Tidecenter.', 'warning');
+            showScreen('screen-overworld');
+            // Load the Tidecenter interior map directly
+            if (window.OverworldEngine) {
+                OverworldEngine.enterTidecenter();
+            }
+            if (overlay) {
+                overlay.style.transition = 'opacity 1.2s ease';
+                setTimeout(() => {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => {
+                        overlay.style.pointerEvents = 'none';
+                        overlay.style.transition = '';
+                    }, 1200);
+                }, 400);
+            }
+        }, 1600);
+    }
+
+    function _healPartyFull() {
+        state.party.forEach(c => {
+            c.stats.vit = c.stats.maxVit;
+            c.stats.aet = c.stats.maxAet;
+        });
+        updatePartyStrip();
+    }
+
+    // ── TIDECENTER ───────────────────────────────────────────
+    function openTidecenter() {
+        playSound('select');
+        const overlay = document.getElementById('tidecenter-overlay');
+        if (overlay) {
+            _renderTidecenter();
+            overlay.classList.remove('hidden');
+        }
+    }
+
+    function closeTidecenter() {
+        playSound('back');
+        const overlay = document.getElementById('tidecenter-overlay');
+        if (overlay) overlay.classList.add('hidden');
+    }
+
+    let _tcRestStep = 0; // 0=idle, 1=asking, 2=healing, 3=done
+
+    function _renderTidecenter() {
+        _tcRestStep = 0;
+        const dlg = document.getElementById('tc-dialogue');
+        if (dlg) dlg.textContent = 'Welcome to the Tidecenter! Your companions can rest here.';
+        const restBtn = document.getElementById('tc-rest-btn');
+        if (restBtn) restBtn.textContent = 'REST COMPANIONS';
+        const pcBtn = document.getElementById('tc-pc-btn');
+        if (pcBtn) pcBtn.disabled = false;
+        _renderTCParty();
+    }
+
+    function _renderTCParty() {
+        const list = document.getElementById('tc-party-list');
+        if (!list) return;
+        list.innerHTML = '';
+        if (state.party.length === 0) {
+            list.innerHTML = '<div class="tc-empty">No companions in party.</div>';
+            return;
+        }
+        state.party.forEach((c, i) => {
+            const pct = Math.round((c.stats.vit / c.stats.maxVit) * 100);
+            const color = pct < 25 ? '#e05555' : pct < 50 ? '#e8b84b' : '#55c3a8';
+            const orb = document.createElement('div');
+            orb.className = 'tc-orb-row';
+            orb.id = `tc-orb-${i}`;
+            orb.innerHTML = `
+                <div class="tc-orb-ball" id="tc-ball-${i}">◉</div>
+                <span class="tc-orb-name">${c.name}</span>
+                <span class="tc-orb-lv">Lv.${c.level}</span>
+                <div class="tc-orb-bar"><div class="tc-orb-fill" style="width:${pct}%;background:${color}"></div></div>
+                <span class="tc-orb-hp">${c.stats.vit}/${c.stats.maxVit}</span>
+            `;
+            list.appendChild(orb);
+        });
+    }
+
+    function tcRestCompanions() {
+        if (_tcRestStep === 2) return; // already healing
+        _tcRestStep = 2;
+        const dlg = document.getElementById('tc-dialogue');
+        if (dlg) dlg.textContent = 'Placing your companions in the Restoration Chamber...';
+        const restBtn = document.getElementById('tc-rest-btn');
+        if (restBtn) restBtn.disabled = true;
+
+        // Flash orb animations then heal
+        state.party.forEach((c, i) => {
+            const ball = document.getElementById(`tc-ball-${i}`);
+            if (ball) ball.classList.add('tc-orb-healing');
+        });
+
+        playSound('encounter');
+
+        setTimeout(() => {
+            _healPartyFull();
+            _renderTCParty();
+            state.party.forEach((c, i) => {
+                const ball = document.getElementById(`tc-ball-${i}`);
+                if (ball) ball.classList.remove('tc-orb-healing');
+            });
+            if (dlg) dlg.textContent = '✓ All companions fully restored! Have a safe journey!';
+            if (restBtn) { restBtn.disabled = false; restBtn.textContent = 'REST AGAIN'; }
+            playSound('levelup');
+            _tcRestStep = 3;
+        }, 2200);
+    }
+
+    // ── PC STORAGE ───────────────────────────────────────────
+    function openPCStorage() {
+        closeTidecenter();
+        playSound('select');
+        const overlay = document.getElementById('pc-overlay');
+        if (overlay) {
+            _renderPC();
+            overlay.classList.remove('hidden');
+        }
+    }
+
+    function closePCStorage() {
+        playSound('back');
+        const overlay = document.getElementById('pc-overlay');
+        if (overlay) overlay.classList.add('hidden');
+    }
+
+    function _renderPC() {
+        _renderPCParty();
+        _renderPCBox();
+        _renderPCStats();
+    }
+
+    function _renderPCParty() {
+        const list = document.getElementById('pc-party-list');
+        if (!list) return;
+        list.innerHTML = '';
+        state.party.forEach((c, i) => {
+            const row = document.createElement('div');
+            row.className = 'pc-creature-row';
+            const pct = Math.round((c.stats.vit / c.stats.maxVit) * 100);
+            const color = pct < 25 ? '#e05555' : pct < 50 ? '#e8b84b' : '#55c3a8';
+            row.innerHTML = `
+                <span class="pc-cr-name">${c.name}</span>
+                <span class="pc-cr-lv">Lv.${c.level}</span>
+                <div class="pc-cr-bar"><div style="width:${pct}%;background:${color}"></div></div>
+                <button class="pc-btn pc-store-btn" onclick="Game.pcStoreCreature(${i})">STORE →</button>
+            `;
+            list.appendChild(row);
+        });
+        if (state.party.length === 0) {
+            list.innerHTML = '<div class="pc-empty">Party is empty.</div>';
+        }
+    }
+
+    function _renderPCBox() {
+        const box = document.getElementById('pc-box-list');
+        if (!box) return;
+        box.innerHTML = '';
+        if (state.pc.length === 0) {
+            box.innerHTML = '<div class="pc-empty">PC Box is empty.</div>';
+            return;
+        }
+        state.pc.forEach((c, i) => {
+            const row = document.createElement('div');
+            row.className = 'pc-creature-row';
+            row.innerHTML = `
+                <span class="pc-cr-name">${c.name}</span>
+                <span class="pc-cr-lv">Lv.${c.level}</span>
+                <button class="pc-btn pc-withdraw-btn" onclick="Game.pcWithdrawCreature(${i})">← WITHDRAW</button>
+            `;
+            box.appendChild(row);
+        });
+    }
+
+    function _renderPCStats() {
+        const statsEl = document.getElementById('pc-stats-panel');
+        if (!statsEl) return;
+        const s = state.stats;
+        statsEl.innerHTML = `
+            <div class="pc-stat-row"><span>Steps Walked</span><span>${(s.stepsWalked || 0).toLocaleString()}</span></div>
+            <div class="pc-stat-row"><span>Creatures Caught</span><span>${s.creaturesCaught || 0}</span></div>
+            <div class="pc-stat-row"><span>Battles Won</span><span>${s.battlesWon || 0}</span></div>
+            <div class="pc-stat-row"><span>Battles Lost</span><span>${s.battlesLost || 0}</span></div>
+            <div class="pc-stat-row"><span>Blackouts</span><span>${s.blackouts || 0}</span></div>
+            <div class="pc-stat-row"><span>Creatures in Godex</span><span>${state.codex.size} / ${Object.keys(CREATURE_DEFS).length}</span></div>
+            <div class="pc-stat-row"><span>Party Size</span><span>${state.party.length} / 6</span></div>
+            <div class="pc-stat-row"><span>PC Box</span><span>${state.pc.length} stored</span></div>
+        `;
+    }
+
+    function pcStoreCreature(partyIndex) {
+        if (state.party.length <= 1) {
+            notify("You can't store your last companion!", 'warning');
+            return;
+        }
+        const c = state.party.splice(partyIndex, 1)[0];
+        state.pc.push(c);
+        playSound('select');
+        notify(`${c.name} was stored in the PC.`, 'success');
+        _renderPC();
+        updatePartyStrip();
+    }
+
+    function pcWithdrawCreature(boxIndex) {
+        if (state.party.length >= 6) {
+            notify('Your party is full! Store a companion first.', 'warning');
+            return;
+        }
+        const c = state.pc.splice(boxIndex, 1)[0];
+        state.party.push(c);
+        playSound('select');
+        notify(`${c.name} was added to your party!`, 'success');
+        _renderPC();
+        updatePartyStrip();
+    }
+
+    // ── BAG DETAIL POPUP ─────────────────────────────────────
+    function openBagDetail() {
+        playSound('select');
+        _renderBagDetail();
+        const overlay = document.getElementById('bag-detail-overlay');
+        if (overlay) overlay.classList.remove('hidden');
+    }
+
+    function closeBagDetail() {
+        playSound('back');
+        const overlay = document.getElementById('bag-detail-overlay');
+        if (overlay) overlay.classList.add('hidden');
+    }
+
+    function _renderBagDetail() {
+        const container = document.getElementById('bag-detail-content');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const bagSections = [
+            { label: 'CAPTURE DEVICES', ids: ['tide_orb'],               icon: '🔮' },
+            { label: 'RECOVERY',        ids: ['reef_salve','storm_draft'],icon: '💊' },
+            { label: 'QUEST ITEMS',     ids: ['tide_shard'],              icon: '✨' },
+        ];
+
+        bagSections.forEach(section => {
+            const secItems = section.ids.filter(id => (state.items[id] || 0) > 0);
+            if (secItems.length === 0) return;
+
+            const secDiv = document.createElement('div');
+            secDiv.className = 'bag-detail-section';
+            secDiv.innerHTML = `<div class="bag-detail-header">${section.icon} ${section.label}</div>`;
+
+            secItems.forEach(id => {
+                const def = ITEMS[id];
+                if (!def) return;
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'bag-detail-item';
+                let extraInfo = '';
+                if (id === 'tide_shard') {
+                    const q = state.quests && state.quests.tide_shard_recovery;
+                    extraInfo = q ? `<span class="bag-item-quest-tag">${q.complete ? 'COMPLETE ✓' : `Quest: ${q.shardsFound}/${q.shardsRequired}`}</span>` : '';
+                }
+                itemDiv.innerHTML = `
+                    <div class="bag-item-main">
+                        <span class="bag-item-name">${def.name}</span>
+                        <span class="bag-item-qty">×${state.items[id]}</span>
+                    </div>
+                    <div class="bag-item-desc">${def.desc}</div>
+                    ${extraInfo}
+                `;
+                secDiv.appendChild(itemDiv);
+            });
+
+            container.appendChild(secDiv);
+        });
+
+        const total = Object.values(state.items).reduce((a, b) => a + b, 0);
+        if (total === 0) {
+            container.innerHTML = '<div class="bag-detail-empty">Your bag is empty.</div>';
+        }
+    }
+
     // ── PUBLIC API ───────────────────────────────────────────
     return {
         get state() { return state; },
@@ -1070,6 +1378,16 @@ const Game = (() => {
         showEncounterAlert,
         toggleStartMenu,
         closeStartMenu: _closeStartMenu,
+        blackout,
+        openTidecenter,
+        closeTidecenter,
+        tcRestCompanions,
+        openPCStorage,
+        closePCStorage,
+        pcStoreCreature,
+        pcWithdrawCreature,
+        openBagDetail,
+        closeBagDetail,
 
         // Expose battle sub-object so HTML onclick="Game.battle.X()" works
         get battle() { return BattleEngine; },

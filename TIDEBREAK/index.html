@@ -179,7 +179,7 @@
             <div class="sm-section">
                 <div class="sm-section-title">💼 BAG</div>
                 <div class="sm-bag-list" id="sm-bag-list"></div>
-                <button class="sm-section-btn" onclick="Game.openMenu('team'); Game.closeStartMenu();">OPEN BAG ›</button>
+                <button class="sm-section-btn" onclick="Game.openBagDetail()">OPEN BAG ›</button>
             </div>
             <!-- TEAM -->
             <div class="sm-section">
@@ -364,6 +364,64 @@
 
 <!-- NOTIFICATION SYSTEM -->
 <div id="notification-container"></div>
+
+<!-- TIDECENTER OVERLAY -->
+<div id="tidecenter-overlay" class="tc-overlay hidden">
+    <div class="tc-panel">
+        <div class="tc-header">
+            <div class="tc-title">🌊 TIDECENTER</div>
+            <div class="tc-subtitle">Brinefall Restoration Station</div>
+        </div>
+        <div class="tc-nurse-row">
+            <div class="tc-nurse-sprite">
+                <div class="tc-nurse-icon">⚕</div>
+            </div>
+            <div class="tc-dialogue" id="tc-dialogue">Welcome to the Tidecenter! Your companions can rest here.</div>
+        </div>
+        <div class="tc-party-list" id="tc-party-list"></div>
+        <div class="tc-buttons">
+            <button class="tc-btn tc-btn-rest" id="tc-rest-btn" onclick="Game.tcRestCompanions()">REST COMPANIONS</button>
+            <button class="tc-btn tc-btn-pc"   id="tc-pc-btn"   onclick="Game.openPCStorage()">💻 PC STORAGE</button>
+            <button class="tc-btn tc-btn-close"                  onclick="Game.closeTidecenter()">✕ LEAVE</button>
+        </div>
+    </div>
+</div>
+
+<!-- PC STORAGE OVERLAY -->
+<div id="pc-overlay" class="pc-overlay hidden">
+    <div class="pc-panel">
+        <div class="pc-header">
+            <div class="pc-title">💻 TIDEBREAK PC</div>
+            <div class="pc-subtitle">Bonded Creature Storage System</div>
+        </div>
+        <div class="pc-columns">
+            <div class="pc-col">
+                <div class="pc-col-title">👥 YOUR PARTY</div>
+                <div class="pc-party-list" id="pc-party-list"></div>
+            </div>
+            <div class="pc-col">
+                <div class="pc-col-title">📦 PC BOX</div>
+                <div class="pc-box-list" id="pc-box-list"></div>
+            </div>
+            <div class="pc-col pc-col-stats">
+                <div class="pc-col-title">📊 TRAINER STATS</div>
+                <div class="pc-stats-panel" id="pc-stats-panel"></div>
+            </div>
+        </div>
+        <div class="pc-footer">
+            <button class="tc-btn tc-btn-close" onclick="Game.closePCStorage()">✕ CLOSE PC</button>
+        </div>
+    </div>
+</div>
+
+<!-- BAG DETAIL OVERLAY -->
+<div id="bag-detail-overlay" class="bag-detail-overlay hidden">
+    <div class="bag-detail-panel">
+        <div class="bag-detail-title">💼 BAG</div>
+        <div class="bag-detail-content" id="bag-detail-content"></div>
+        <button class="tc-btn tc-btn-close" onclick="Game.closeBagDetail()">✕ CLOSE</button>
+    </div>
+</div>
 
 <!-- WEATHER EVENT FULL BANNER -->
 <div id="climate-event-banner" class="climate-banner hidden">

@@ -376,16 +376,28 @@ html, body {
 
 /* ============ OVERWORLD HUD ============ */
 #overworld-canvas {
-    position: absolute; inset: 0;
-    width: 100%; height: 100%;
+    position: relative;
+    display: block;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+    /* Fixed viewport — canvas is 720×528, scaled via CSS */
+    width:  min(100vw, calc(100vh * (720 / 528)));
+    height: min(100vh, calc(100vw * (528 / 720)));
+}
+/* HUD and overlays are positioned over the canvas */
+.hud,
+#overworld-dlg,
+#encounter-alert,
+#battle-status-area {
+    position: fixed;
+    pointer-events: none;
 }
 .hud {
-    position: absolute; inset: 0;
-    pointer-events: none;
+    inset: 0;
     z-index: 10;
 }
+/* Re-enable pointer events on interactive overworld overlays */
+#overworld-dlg { pointer-events: all; }
 .hud-top-left {
     position: absolute;
     top: 20px; left: 20px;
@@ -1777,3 +1789,166 @@ html, body {
 .sm-footer-btn:hover { background: rgba(42,181,199,0.12); color: #fff; }
 .sm-close-btn { color: #e05555 !important; border-right: none !important; }
 .sm-close-btn:hover { background: rgba(224,85,85,0.12) !important; color: #ff8888 !important; }
+
+/* ── OVERWORLD CANVAS VIEWPORT ─────────────────────────────────── */
+#screen-overworld { align-items: center; justify-content: center; background: #000; }
+
+/* ── TIDECENTER OVERLAY ─────────────────────────────────────────── */
+.tc-overlay {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.82);
+    z-index: 8000;
+}
+.tc-overlay.hidden { display: none; }
+.tc-panel {
+    background: linear-gradient(160deg, #0d1e36 0%, #0a2040 100%);
+    border: 2px solid #40c0d0;
+    border-radius: 12px;
+    padding: 28px 32px;
+    min-width: 380px;
+    max-width: 480px;
+    width: 90vw;
+    font-family: 'Press Start 2P', monospace;
+    color: #c8e8f0;
+    box-shadow: 0 0 32px rgba(64,192,208,0.25);
+}
+.tc-header { text-align: center; margin-bottom: 18px; }
+.tc-title { font-size: 0.9rem; color: #40c0d0; letter-spacing: 2px; margin-bottom: 4px; }
+.tc-subtitle { font-size: 0.4rem; color: #6a8fa0; }
+.tc-nurse-row { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+.tc-nurse-icon { font-size: 2.2rem; background: rgba(64,192,208,0.12); border: 1px solid #40c0d0; border-radius: 50%; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.tc-dialogue { font-size: 0.42rem; line-height: 1.8; color: #c8e8f0; flex: 1; }
+.tc-party-list { margin-bottom: 18px; display: flex; flex-direction: column; gap: 6px; min-height: 60px; }
+.tc-empty { font-size: 0.38rem; color: #556; text-align: center; padding: 12px 0; }
+.tc-orb-row {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.04); border-radius: 6px; padding: 6px 10px;
+    font-size: 0.38rem;
+}
+.tc-orb-ball { font-size: 1rem; color: #40c0d0; transition: color 0.2s; }
+.tc-orb-ball.tc-orb-healing { animation: orbHealPulse 0.5s steps(2) infinite; }
+@keyframes orbHealPulse { 0%{color:#40c0d0} 50%{color:#fff} 100%{color:#ff8080} }
+.tc-orb-name { flex: 1; color: #e8f4f8; }
+.tc-orb-lv   { color: #6a9ab0; min-width: 36px; }
+.tc-orb-bar  { flex: 2; height: 6px; background: #0a1820; border-radius: 3px; overflow: hidden; }
+.tc-orb-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+.tc-orb-hp   { color: #aaccdd; min-width: 60px; text-align: right; }
+.tc-buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.tc-btn {
+    font-family: 'Press Start 2P', monospace; font-size: 0.4rem;
+    padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer;
+    letter-spacing: 1px; transition: opacity 0.15s, transform 0.1s;
+}
+.tc-btn:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+.tc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tc-btn-rest  { background: #40c0d0; color: #030e18; }
+.tc-btn-pc    { background: #2040a0; color: #c8d8ff; }
+.tc-btn-close { background: #3a1010; color: #e05555; }
+
+/* ── PC STORAGE OVERLAY ─────────────────────────────────────────── */
+.pc-overlay {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.88);
+    z-index: 8100;
+}
+.pc-overlay.hidden { display: none; }
+.pc-panel {
+    background: linear-gradient(160deg, #080e20 0%, #0a1430 100%);
+    border: 2px solid #4080ff;
+    border-radius: 12px;
+    padding: 24px 28px;
+    width: min(92vw, 900px);
+    max-height: 90vh;
+    overflow-y: auto;
+    font-family: 'Press Start 2P', monospace;
+    color: #c8d8ff;
+    box-shadow: 0 0 32px rgba(64,128,255,0.3);
+    display: flex; flex-direction: column; gap: 16px;
+}
+.pc-header { text-align: center; }
+.pc-title   { font-size: 0.85rem; color: #60a8ff; letter-spacing: 2px; margin-bottom: 4px; }
+.pc-subtitle{ font-size: 0.38rem; color: #4060a0; }
+.pc-columns { display: flex; gap: 20px; flex-wrap: wrap; }
+.pc-col     { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 8px; }
+.pc-col-title { font-size: 0.45rem; color: #60a8ff; border-bottom: 1px solid #1a3060; padding-bottom: 6px; }
+.pc-empty   { font-size: 0.36rem; color: #334; padding: 8px 0; }
+.pc-creature-row {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.04); border-radius: 6px; padding: 6px 8px;
+    font-size: 0.36rem;
+}
+.pc-cr-name { flex: 1; color: #c8d8ff; }
+.pc-cr-lv   { color: #4060a0; min-width: 32px; }
+.pc-cr-bar  { flex: 1; height: 5px; background: #0a1020; border-radius: 3px; overflow: hidden; }
+.pc-cr-bar div { height: 100%; border-radius: 3px; }
+.pc-btn {
+    font-family: 'Press Start 2P', monospace; font-size: 0.3rem;
+    padding: 5px 8px; border: 1px solid #203050; border-radius: 4px;
+    cursor: pointer; background: #0a1830; color: #60a8ff;
+    transition: background 0.12s;
+}
+.pc-btn:hover { background: #1a3060; }
+.pc-store-btn   { color: #e8b84b; border-color: #604020; }
+.pc-withdraw-btn{ color: #55c3a8; border-color: #205040; }
+.pc-col-stats { min-width: 200px; }
+.pc-stats-panel { display: flex; flex-direction: column; gap: 6px; }
+.pc-stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.34rem; padding: 5px 8px;
+    background: rgba(64,128,255,0.05); border-radius: 4px;
+    color: #aabbdd;
+}
+.pc-stat-row span:last-child { color: #60a8ff; }
+.pc-footer { display: flex; justify-content: center; }
+
+/* ── BAG DETAIL OVERLAY ─────────────────────────────────────────── */
+.bag-detail-overlay {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.82);
+    z-index: 8200;
+}
+.bag-detail-overlay.hidden { display: none; }
+.bag-detail-panel {
+    background: linear-gradient(160deg, #101a10 0%, #0a1a18 100%);
+    border: 2px solid #55c3a8;
+    border-radius: 12px;
+    padding: 24px 28px;
+    width: min(90vw, 480px);
+    max-height: 80vh;
+    overflow-y: auto;
+    font-family: 'Press Start 2P', monospace;
+    color: #c8eee4;
+    box-shadow: 0 0 28px rgba(85,195,168,0.2);
+    display: flex; flex-direction: column; gap: 16px;
+}
+.bag-detail-title { font-size: 0.85rem; color: #55c3a8; text-align: center; letter-spacing: 2px; }
+.bag-detail-section { display: flex; flex-direction: column; gap: 8px; }
+.bag-detail-header { font-size: 0.4rem; color: #e8b84b; border-bottom: 1px solid #203028; padding-bottom: 5px; }
+.bag-detail-item {
+    background: rgba(255,255,255,0.05); border-radius: 6px;
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 5px;
+}
+.bag-item-main { display: flex; justify-content: space-between; align-items: center; }
+.bag-item-name { font-size: 0.42rem; color: #c8eee4; }
+.bag-item-qty  { font-size: 0.42rem; color: #f0e040; }
+.bag-item-desc { font-size: 0.32rem; color: #7a9a90; line-height: 1.7; }
+.bag-item-quest-tag { font-size: 0.32rem; color: #55c3a8; }
+.bag-detail-empty { font-size: 0.4rem; color: #556; text-align: center; padding: 24px; }
+
+/* ── INTERIOR MAP — canvas adapt ────────────────────────────────── */
+/* When inside an interior (small canvas), center it with a dark vignette frame */
+#screen-overworld.interior-active {
+    background: #0a0a14;
+}
+#screen-overworld.interior-active #overworld-canvas {
+    /* Interior canvas is smaller — keep it pixelated and centered, max 80vh */
+    max-height: 80vh;
+    max-width: 80vh;
+    width: auto;
+    height: auto;
+    border: 3px solid #1a2a4a;
+    box-shadow: 0 0 40px rgba(64, 192, 240, 0.18), 0 0 0 6px #090912;
+}

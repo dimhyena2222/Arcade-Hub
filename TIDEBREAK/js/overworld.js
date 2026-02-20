@@ -12,6 +12,11 @@ const OverworldEngine = (() => {
     const MAP_COLS     = 40;
     const MAP_ROWS     = 30;
     const ENCOUNTER_RATE = 0.12;
+    // Viewport: fixed tile window the player sees (GBA-style)
+    const VIEW_COLS    = 15;   // tiles wide visible at once
+    const VIEW_ROWS    = 11;   // tiles tall visible at once
+    const VIEW_W       = VIEW_COLS * TILE_SIZE;   // 720px
+    const VIEW_H       = VIEW_ROWS * TILE_SIZE;   // 528px
 
     // ── TILE TYPES ───────────────────────────────────────────
     const T = {
@@ -31,6 +36,9 @@ const OverworldEngine = (() => {
         SIGN:   13, // sign post (solid/interact)
         TALL:   14, // tall grass (slightly darker than GRASS)
         FENCE:  15, // wooden fence (solid)
+        CENTER: 16, // Tidecenter building (solid, interact-able doorstep)
+        FLOOR:  17, // interior floor tile
+        EXIT:   18, // exit/door tile back to overworld
     };
 
     // ── BRINEFALL MAP (40×30) ────────────────────────────────
@@ -44,10 +52,10 @@ const OverworldEngine = (() => {
                 [ 8,  8,  8,  0,  0,  0,  0,  0,  5,  5,  5,  5,  5,  3,  5,  5,  5,  5,  5,  5,  5,  5,  0,  0,  11, 11, 14, 14, 14, 14, 14, 14, 14, 14, 11, 11, 11, 11, 11, 11], // row 1
                 [ 8,  8,  0,  0,  5,  5,  5,  5,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  1,  5,  5,  0,  11, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 11, 11, 11, 11, 11], // row 2
                 [ 8,  0,  0,  5,  1,  1,  1,  1,  3,  3,  3,  3,  3,  3,  3,  3,  3,  1,  1,  1,  1,  1,  5,  5,  14, 14, 14, 12, 12, 12, 12, 12, 14, 14, 14, 14, 11, 11, 11, 11], // row 3
-                [ 0,  0,  5,  1,  1,  6,  1,  1,  3,  1,  1,  1,  1, 11, 11,  3,  1,  1,  6,  1,  1,  1,  1,  5,  14, 14, 12, 12, 12, 12, 12, 12, 12, 14, 14, 14, 14, 11, 11, 11], // row 4
-                [ 0,  5,  1,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  1,  5,  14, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14, 14, 14, 11, 11, 11], // row 5
-                [ 0,  5,  1,  1,  1,  1,  1,  1,  3,  1, 10,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  6,  1,  5,  15, 12, 12, 12, 10, 12, 12, 12, 12, 12, 12, 14, 14, 11, 11, 11], // row 6
-                [ 0,  5,  1,  6,  1,  1,  1,  1,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  1,  1,  1,  1,  5,   3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3, 14, 14, 11, 11, 11], // row 7 — route path
+                [ 0,  0,  5,  1,  1,  6,  1,  1,  3,  1,  1,  1,  1, 11, 11,  3,  1,  1, 16, 16,  1,  1,  1,  5,  14, 14, 12, 12, 12, 12, 12, 12, 12, 14, 14, 14, 14, 11, 11, 11], // row 4 — Tidecenter cols 18-19
+                [ 0,  5,  1,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  3,  1,  1, 16, 16,  1,  1,  1,  5,  14, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14, 14, 14, 11, 11, 11], // row 5 — Tidecenter cols 18-19
+                [ 0,  5,  1,  1,  1,  1,  1,  1,  3,  1, 10,  1,  1,  1,  1,  3,  1,  1,  1,  3,  1,  6,  1,  5,  15, 12, 12, 12, 10, 12, 12, 12, 12, 12, 12, 14, 14, 11, 11, 11], // row 6 — col 19 = PATH (Tidecenter door)
+                [ 0,  5,  1,  6,  1,  1,  1,  1,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  1,  1,  5,   3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3, 14, 14, 11, 11, 11], // row 7 — route path
                 [ 0,  5,  1,  1,  1,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  5,  14, 14, 14, 12, 12, 12, 12, 12, 14, 14, 14, 14, 14, 14, 11, 11], // row 8
                 [ 0,  5,  1,  1,  1,  1,  1,  1,  1,  1,  3,  1,  6,  1,  1,  1,  3,  1,  1,  1,  1,  1,  1,  1,  5,  14, 14, 12, 12, 12, 12, 12, 12, 14, 14, 14, 14, 11, 11, 11], // row 9
                 [ 0,  5,  1,  1, 11, 11,  1,  1,  1,  1,  3,  1,  1,  1,  1,  1,  3,  1,  1, 11, 11,  1,  1,  1,  5,  14, 12, 12, 12, 12, 12, 12, 12, 12, 14, 14, 14, 11, 11, 11], // row 10
@@ -74,15 +82,43 @@ const OverworldEngine = (() => {
             encounterZones: [T.GRASS, T.SHORE, T.ROUTE, T.TALL],
             playerStart: { x: 13, y: 12 },
             npcs: [
-                { id: 'prof_maris',    tile: { x: 13, y: 9  } },
-                { id: 'harbor_guard',  tile: { x: 10, y: 15 } },
-                { id: 'elder_sota',    tile: { x: 5,  y: 8  } },
-                { id: 'route1_hiker',  tile: { x: 30, y: 7  } },
-                { id: 'route1_sign',   tile: { x: 24, y: 7  } },
+                { id: 'prof_maris',      tile: { x: 13, y: 9  } },
+                { id: 'harbor_guard',    tile: { x: 10, y: 15 } },
+                { id: 'elder_sota',      tile: { x: 5,  y: 8  } },
+                { id: 'route1_hiker',    tile: { x: 30, y: 7  } },
+                { id: 'route1_sign',     tile: { x: 24, y: 7  } },
             ],
             encounterTable: 'brinefall_shore',
             routeEncounterTable: 'brinefall_route1',
             ambientWeather: ['CLEAR', 'RAIN'],
+        },
+        // ── TIDECENTER INTERIOR ──────────────────────────────
+        // 12×9 tile room — floor, walls, nurse NPC, PC terminal, exit door
+        tidecenter: {
+            tiles: [
+                // 0  1  2  3  4  5  6  7  8  9 10 11
+                [ 4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4], // row 0 — top wall
+                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 1
+                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 2
+                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 3
+                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 4
+                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 5
+                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 6
+                [ 4,  4,  4,  4,  4, 18,  4,  4,  4,  4,  4,  4], // row 7 — exit at col 5
+                [ 4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4], // row 8
+            ],
+            encounterZones: [],
+            playerStart: { x: 5, y: 6 },
+            npcs: [
+                { id: 'tidecenter_nurse', tile: { x: 3, y: 2 } },
+                { id: 'tidecenter_pc',    tile: { x: 9, y: 2 } },
+            ],
+            encounterTable: null,
+            routeEncounterTable: null,
+            ambientWeather: ['CLEAR'],
+            isInterior: true,
+            exitMap: 'brinefall',
+            exitPos:  { x: 19, y: 7 },  // tile in front of the Tidecenter door outside
         },
     };
 
@@ -105,6 +141,9 @@ const OverworldEngine = (() => {
         [T.SIGN]:  '#6b4a2a',  // wooden sign post
         [T.TALL]:  '#245230',  // tall grass (encounter)
         [T.FENCE]: '#7a5a30',  // wooden fence
+        [T.CENTER]:'#1a3a6a',  // Tidecenter — teal-blue building
+        [T.FLOOR]: '#2a2a3a',  // interior floor — dark stone tile
+        [T.EXIT]:  '#3a5a3a',  // exit doormat — green-tinted
     };
 
     // Pre-render tile textures to offscreen canvases for performance
@@ -302,6 +341,55 @@ const OverworldEngine = (() => {
                 ox.fillStyle = rail;
                 ox.fillRect(0, 3*vP, TILE_SIZE, vP);   // top rail
                 ox.fillRect(0, 7*vP, TILE_SIZE, vP);   // bottom rail
+                break;
+            }
+            case T.CENTER: {
+                // Tidecenter — teal-blue building with red cross
+                const wall  = '#1a3a6a';
+                const roof  = '#0d2040';
+                const cross = '#e84040';
+                const win   = '#60c8e0';
+                ox.fillStyle = wall; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                ox.fillStyle = roof; ox.fillRect(0, 0, TILE_SIZE, 3*vP);
+                // Red cross emblem
+                ox.fillStyle = cross;
+                ox.fillRect(5*vP, 3*vP, 2*vP, 6*vP);
+                ox.fillRect(4*vP, 5*vP, 4*vP, 2*vP);
+                // Window
+                ox.fillStyle = win; ox.fillRect(8*vP, 4*vP, 3*vP, 3*vP);
+                break;
+            }
+            case T.FLOOR: {
+                // Interior floor — dark checkered stone tiles
+                const dark  = '#222230';
+                const light = '#2e2e40';
+                const grout = '#181820';
+                ox.fillStyle = dark; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                // Grout lines
+                ox.fillStyle = grout;
+                ox.fillRect(0, 5*vP, TILE_SIZE, vP/2);
+                ox.fillRect(0, 10*vP, TILE_SIZE, vP/2);
+                ox.fillRect(6*vP, 0, vP/2, TILE_SIZE);
+                // Subtle stone panel shading
+                ox.fillStyle = light;
+                ox.fillRect(vP, vP, 5*vP, 4*vP);
+                ox.fillRect(7*vP, 6*vP, 4*vP, 4*vP);
+                break;
+            }
+            case T.EXIT: {
+                // Exit doormat — green tinted with arrow indicator
+                const base = '#2a4a2a';
+                const stripe = '#3a6a3a';
+                const arrow = '#60c060';
+                ox.fillStyle = base; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                ox.fillStyle = stripe;
+                ox.fillRect(2*vP, 2*vP, TILE_SIZE-4*vP, 2*vP);
+                ox.fillRect(2*vP, 9*vP, TILE_SIZE-4*vP, 2*vP);
+                // Down-arrow (exit indicator)
+                ox.fillStyle = arrow;
+                ox.fillRect(5*vP, 4*vP, 2*vP, 4*vP);
+                ox.fillRect(4*vP, 6*vP, 4*vP, 2*vP);
+                ox.fillRect(3*vP, 7*vP, 6*vP, 1*vP);
                 break;
             }
         }
@@ -608,6 +696,7 @@ const OverworldEngine = (() => {
     // ── STATE ────────────────────────────────────────────────
     let canvas, ctx;
     let currentMap = null;
+    let inBattle = false;   // guards against multiple simultaneous encounters
     let player = {
         x: 13, y: 12,
         px: 13*TILE_SIZE,
@@ -623,6 +712,8 @@ const OverworldEngine = (() => {
     let dialogueQueue = [];
     let inDialogue = false;
     let currentNpcId = null;
+    let currentMapId = 'brinefall';
+    let interactPrompt = null; // { label, tx, ty } — tile to show "E to interact" over
     let animFrame = null;
     let weatherTimer = null;
     let lastTime = 0;
@@ -641,22 +732,43 @@ const OverworldEngine = (() => {
     function loadMap(mapId) {
         currentMap = MAPS[mapId];
         if (!currentMap) return;
+        currentMapId = mapId;
         player.x = currentMap.playerStart.x;
         player.y = currentMap.playerStart.y;
         player.px = player.x * TILE_SIZE;
         player.py = player.y * TILE_SIZE;
         player.targetPx = player.px;
         player.targetPy = player.py;
+        player.moving = false;
+        interactPrompt = null;
         buildTileCache();
         resizeCanvas();
+        // Toggle CSS class for interior background/canvas styling
+        const screenEl = document.getElementById('screen-overworld');
+        if (screenEl) {
+            screenEl.classList.toggle('interior-active', !!currentMap.isInterior);
+        }
         const locEl = document.getElementById('hud-location');
-        if (locEl) locEl.textContent = REGIONS[mapId]?.name || mapId;
-        scheduleWeatherCycle();
+        if (locEl) {
+            locEl.textContent = currentMap.isInterior
+                ? 'Tidecenter'
+                : (REGIONS[mapId]?.name || mapId);
+        }
+        if (!currentMap.isInterior) scheduleWeatherCycle();
     }
 
     function resizeCanvas() {
-        canvas.width  = window.innerWidth;
-        canvas.height = window.innerHeight;
+        if (!currentMap) { canvas.width = VIEW_W; canvas.height = VIEW_H; return; }
+        // For interior maps: canvas fits the whole room; for overworld: fixed viewport
+        if (currentMap.isInterior) {
+            const cols = currentMap.tiles[0].length;
+            const rows = currentMap.tiles.length;
+            canvas.width  = cols * TILE_SIZE;
+            canvas.height = rows * TILE_SIZE;
+        } else {
+            canvas.width  = VIEW_W;
+            canvas.height = VIEW_H;
+        }
     }
 
     window.addEventListener('resize', () => { if (canvas) resizeCanvas(); });
@@ -694,11 +806,11 @@ const OverworldEngine = (() => {
         if (menuOpen) return;
 
         if (inDialogue) {
-            if (e.key === 'z' || e.key === 'Z' || e.key === 'Enter') advanceDialogue();
+            if (e.key === 'z' || e.key === 'Z' || e.key === 'Enter' || e.key === 'e' || e.key === 'E') advanceDialogue();
             return;
         }
 
-        if (e.key === 'z' || e.key === 'Z' || e.key === 'Enter') { checkInteract(); return; }
+        if (e.key === 'e' || e.key === 'E' || e.key === 'z' || e.key === 'Z' || e.key === 'Enter') { checkInteract(); return; }
 
         keysHeld[e.key] = true;
     }
@@ -717,18 +829,25 @@ const OverworldEngine = (() => {
         else if (keysHeld['ArrowLeft']  || keysHeld['a'] || keysHeld['A']) { dx = -1; player.facing = 'left'; }
         else if (keysHeld['ArrowRight'] || keysHeld['d'] || keysHeld['D']) { dx =  1; player.facing = 'right'; }
 
-        if (dx === 0 && dy === 0) return;
+        if (dx === 0 && dy === 0) { updateInteractPrompt(); return; }
 
+        const mapCols = currentMap.tiles[0].length;
+        const mapRows = currentMap.tiles.length;
         const nx = player.x + dx;
         const ny = player.y + dy;
-        if (nx < 0 || ny < 0 || nx >= MAP_COLS || ny >= MAP_ROWS) return;
+        if (nx < 0 || ny < 0 || nx >= mapCols || ny >= mapRows) { updateInteractPrompt(); return; }
 
         const tile = currentMap.tiles[ny][nx];
+        // Solid tiles block movement (NPCs no longer block — use E to interact)
         if (tile === T.WALL || tile === T.HOUSE || tile === T.TREE || tile === T.ROCK ||
-            tile === T.WATER || tile === T.DEEP || tile === T.FENCE) return;
+            tile === T.WATER || tile === T.DEEP || tile === T.FENCE || tile === T.CENTER) {
+            updateInteractPrompt();
+            return;
+        }
 
+        // NPC tiles still block movement
         const npcAtTile = currentMap.npcs.find(n => n.tile.x === nx && n.tile.y === ny);
-        if (npcAtTile) { startNpcDialogue(npcAtTile.id); return; }
+        if (npcAtTile) { updateInteractPrompt(); return; }
 
         // Start smooth movement
         player.x = nx; player.y = ny;
@@ -736,15 +855,63 @@ const OverworldEngine = (() => {
         player.targetPy = ny * TILE_SIZE;
         player.moving = true;
         player.walkTimer++;
+        // Track steps
+        if (Game.state.stats) Game.state.stats.stepsWalked++;
         // 3-frame cycle: advance pose every other step for choppy GBA feel
         player.walkFrame = (player.walkFrame % 2) + 1;  // alternates 1 → 2 → 1 → 2…
 
-        // Encounter check
-        if (currentMap.encounterZones.includes(tile)) {
+        // Exit tile — leave interior
+        if (tile === T.EXIT && currentMap.isInterior) {
+            const exitMap = currentMap.exitMap;
+            const exitPos = currentMap.exitPos;
+            loadMap(exitMap);
+            if (exitPos) {
+                player.x = exitPos.x; player.y = exitPos.y;
+                player.px = player.x * TILE_SIZE; player.py = player.y * TILE_SIZE;
+                player.targetPx = player.px; player.targetPy = player.py;
+            }
+            player.moving = false;
+            return;
+        }
+
+        // Encounter check (only on overworld)
+        if (!currentMap.isInterior && currentMap.encounterZones.includes(tile)) {
             if (Math.random() < ENCOUNTER_RATE) {
-                // Delay encounter until movement completes
                 player.pendingEncounter = true;
             }
+        }
+
+        updateInteractPrompt();
+    }
+
+    // Update the floating interact prompt based on what's adjacent
+    function updateInteractPrompt() {
+        if (inDialogue) { interactPrompt = null; return; }
+        let tx = player.x, ty = player.y;
+        if (player.facing === 'up')    ty--;
+        if (player.facing === 'down')  ty++;
+        if (player.facing === 'left')  tx--;
+        if (player.facing === 'right') tx++;
+
+        const mapCols = currentMap ? currentMap.tiles[0].length : MAP_COLS;
+        const mapRows = currentMap ? currentMap.tiles.length    : MAP_ROWS;
+        if (tx < 0 || ty < 0 || tx >= mapCols || ty >= mapRows) { interactPrompt = null; return; }
+
+        const facedTile = currentMap.tiles[ty][tx];
+        const facedNpc  = currentMap.npcs.find(n => n.tile.x === tx && n.tile.y === ty);
+        const facedExit = facedTile === T.EXIT && currentMap.isInterior;
+
+        if (facedNpc || facedTile === T.CENTER || facedTile === T.SIGN || facedExit) {
+            let label = '[ E ] Interact';
+            if (facedTile === T.CENTER) label = '[ E ] Enter Tidecenter';
+            if (facedExit)             label = '[ E ] Exit';
+            if (facedNpc) {
+                const npcData = NPCS[facedNpc.id];
+                label = `[ E ] Talk to ${npcData ? npcData.name : facedNpc.id}`;
+            }
+            interactPrompt = { label, tx, ty };
+        } else {
+            interactPrompt = null;
         }
     }
 
@@ -769,6 +936,7 @@ const OverworldEngine = (() => {
 
     // ── ENCOUNTERS ───────────────────────────────────────────
     function triggerWildEncounter() {
+        if (inBattle) return;  // prevent stacking encounters
         // Pick encounter table based on tile the player is standing on
         const tile = currentMap.tiles[player.y] && currentMap.tiles[player.y][player.x];
         let tableId = currentMap.encounterTable;
@@ -779,6 +947,7 @@ const OverworldEngine = (() => {
         if (!wild || !Game.state.party.length) return;
         const lead = Game.state.party[0];
 
+        inBattle = true;
         // Show centered encounter flash alert, then start battle
         Game.showEncounterAlert(wild.name, () => {
             BattleEngine.startBattle(lead, wild, {
@@ -786,17 +955,29 @@ const OverworldEngine = (() => {
                 wildBattle: true,
                 canRun: true,
                 onBattleEnd(result) {
-                    if (result === 'lose') {
-                        Game.notify('Your companion fainted...', 'warning');
-                        lead.stats.vit = Math.max(1, Math.floor(lead.stats.maxVit * 0.1));
-                        Game.updatePartyStrip();
-                    } else if (result === 'win' || result === 'capture') {
+                    inBattle = false;
+                    if (result === 'win') {
+                        if (Game.state.stats) Game.state.stats.battlesWon++;
+                    } else if (result === 'capture') {
+                        if (Game.state.stats) Game.state.stats.battlesWon++;
+                    } else if (result === 'lose') {
+                        if (Game.state.stats) Game.state.stats.battlesLost++;
+                        // Check if whole party is fainted
+                        const allFainted = Game.state.party.every(c => c.stats.vit <= 0);
+                        if (allFainted) {
+                            Game.blackout();
+                        } else {
+                            Game.notify('Your companion fainted...', 'warning');
+                            lead.stats.vit = Math.max(1, Math.floor(lead.stats.maxVit * 0.1));
+                            Game.updatePartyStrip();
+                        }
+                    }
+                    if (result === 'win' || result === 'capture') {
                         // Tide Shard drop on Route 1 if mission is active
                         const gs = Game.state;
                         const quest = gs.quests && gs.quests.tide_shard_recovery;
                         const onRoute = (tile === T.ROUTE || tile === T.TALL);
                         if (quest && quest.active && !quest.complete && onRoute) {
-                            // ~40% drop chance per battle until all 3 shards found
                             if (Math.random() < 0.4) {
                                 quest.shardsFound = (quest.shardsFound || 0) + 1;
                                 if (!gs.items.tide_shard) gs.items.tide_shard = 0;
@@ -814,6 +995,7 @@ const OverworldEngine = (() => {
                             }
                         }
                     }
+                    Game.updatePartyStrip();
                 },
             });
         });
@@ -826,8 +1008,36 @@ const OverworldEngine = (() => {
         if (player.facing === 'down')  ty++;
         if (player.facing === 'left')  tx--;
         if (player.facing === 'right') tx++;
+
+        if (!currentMap) return;
+        const facedTile = currentMap.tiles[ty] && currentMap.tiles[ty][tx];
+
+        // Exit tile inside interior — go back to overworld
+        if (facedTile === T.EXIT && currentMap.isInterior) {
+            const exitMap = currentMap.exitMap;
+            const exitPos = currentMap.exitPos;
+            loadMap(exitMap);
+            if (exitPos) {
+                player.x = exitPos.x; player.y = exitPos.y;
+                player.px = player.x * TILE_SIZE; player.py = player.y * TILE_SIZE;
+                player.targetPx = player.px; player.targetPy = player.py;
+            }
+            return;
+        }
+
+        // Entering the Tidecenter from outside (CENTER tile on overworld)
+        if (facedTile === T.CENTER) {
+            loadMap('tidecenter');
+            return;
+        }
+
         const npc = currentMap.npcs.find(n => n.tile.x === tx && n.tile.y === ty);
-        if (npc) startNpcDialogue(npc.id);
+        if (npc) {
+            // Tidecenter interior NPCs open their overlays directly
+            if (npc.id === 'tidecenter_nurse') { Game.openTidecenter(); return; }
+            if (npc.id === 'tidecenter_pc')    { Game.openPCStorage();  return; }
+            startNpcDialogue(npc.id);
+        }
     }
 
     function startNpcDialogue(npcId) {
@@ -922,20 +1132,15 @@ const OverworldEngine = (() => {
 
     // ── CAMERA ───────────────────────────────────────────────
     function updateCamera() {
-        const cw = canvas.width, ch = canvas.height;
+        if (currentMap && currentMap.isInterior) {
+            // No scrolling in interiors — camera stays at 0
+            camera.x = 0; camera.y = 0;
+            return;
+        }
         const mapW = MAP_COLS * TILE_SIZE, mapH = MAP_ROWS * TILE_SIZE;
-        
-        if (mapW > cw) {
-            camera.x = Math.max(0, Math.min(mapW - cw, player.px + TILE_SIZE/2 - cw/2));
-        } else {
-            camera.x = 0;
-        }
-
-        if (mapH > ch) {
-            camera.y = Math.max(0, Math.min(mapH - ch, player.py + TILE_SIZE/2 - ch/2));
-        } else {
-            camera.y = 0;
-        }
+        // Centre camera on player, clamped to map edges
+        camera.x = Math.max(0, Math.min(mapW - VIEW_W, player.px + TILE_SIZE / 2 - VIEW_W / 2));
+        camera.y = Math.max(0, Math.min(mapH - VIEW_H, player.py + TILE_SIZE / 2 - VIEW_H / 2));
     }
 
     // ── RENDER LOOP ──────────────────────────────────────────
@@ -948,6 +1153,8 @@ const OverworldEngine = (() => {
                 processMovement();
                 updatePlayerPosition();
                 updateCamera();
+                // Always refresh interact prompt (handles idle standing near NPCs/tiles)
+                if (!player.moving && !inDialogue) updateInteractPrompt();
                 render(time);
             }
             animFrame = requestAnimationFrame(loop);
@@ -957,25 +1164,25 @@ const OverworldEngine = (() => {
 
     function render(time) {
         if (!ctx || !currentMap) return;
-        const cw = canvas.width, ch = canvas.height;
-        const mapW = MAP_COLS * TILE_SIZE, mapH = MAP_ROWS * TILE_SIZE;
 
-        // Calculate centering offsets for monitors larger than the map
-        const offX = mapW < cw ? Math.floor((cw - mapW) / 2) : 0;
-        const offY = mapH < ch ? Math.floor((ch - mapH) / 2) : 0;
+        const isInterior = currentMap.isInterior;
+        const mapCols = currentMap.tiles[0].length;
+        const mapRows = currentMap.tiles.length;
+        const renderW = isInterior ? mapCols * TILE_SIZE : VIEW_W;
+        const renderH = isInterior ? mapRows * TILE_SIZE : VIEW_H;
 
-        ctx.clearRect(0, 0, cw, ch);
+        ctx.clearRect(0, 0, renderW, renderH);
         ctx.save();
-        ctx.translate(offX - camera.x, offY - camera.y);
+        ctx.translate(-camera.x, -camera.y);
 
         // Frame calculation for animated tiles
         const frameIndex = Math.floor(time / 400) % 4;
 
-        // Draw tiles from cache
+        // Draw only the tiles visible in the viewport
         const startCol = Math.max(0, Math.floor(camera.x / TILE_SIZE));
-        const endCol   = Math.min(MAP_COLS, startCol + Math.ceil(cw / TILE_SIZE) + 2);
+        const endCol   = Math.min(mapCols, startCol + (isInterior ? mapCols : VIEW_COLS + 2));
         const startRow = Math.max(0, Math.floor(camera.y / TILE_SIZE));
-        const endRow   = Math.min(MAP_ROWS, startRow + Math.ceil(ch / TILE_SIZE) + 2);
+        const endRow   = Math.min(mapRows, startRow + (isInterior ? mapRows : VIEW_ROWS + 2));
 
         for (let row = startRow; row < endRow; row++) {
             for (let col = startCol; col < endCol; col++) {
@@ -1008,6 +1215,50 @@ const OverworldEngine = (() => {
         // Draw player
         drawPlayer();
 
+        // Draw interact prompt above the target tile
+        if (interactPrompt && !inDialogue) {
+            drawInteractPrompt(interactPrompt);
+        }
+
+        ctx.restore();
+    }
+
+    function drawInteractPrompt(prompt) {
+        // Hover bubble above the target NPC/tile
+        const wx = prompt.tx * TILE_SIZE + TILE_SIZE / 2;
+        const wy = prompt.ty * TILE_SIZE - 8;
+
+        const text = prompt.label;
+        ctx.save();
+        ctx.font = 'bold 11px "Courier New", monospace';
+        const tw = ctx.measureText(text).width;
+        const pad = 8;
+        const bw = tw + pad * 2;
+        const bh = 20;
+        const bx = wx - bw / 2;
+        const by = wy - bh;
+
+        // Bouncy float animation
+        const bounce = Math.sin(Date.now() / 400) * 3;
+
+        // Background pill
+        ctx.fillStyle = 'rgba(10,20,40,0.88)';
+        ctx.beginPath();
+        ctx.roundRect(bx, by + bounce, bw, bh, 5);
+        ctx.fill();
+
+        // Teal border
+        ctx.strokeStyle = '#40c8ff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(bx, by + bounce, bw, bh, 5);
+        ctx.stroke();
+
+        // Text
+        ctx.fillStyle = '#e0f4ff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, wx, by + bh / 2 + bounce);
         ctx.restore();
     }
 
@@ -1066,6 +1317,31 @@ const OverworldEngine = (() => {
             ctx.fillStyle = '#4a2a10'; ctx.fillRect(px+22*s, py+38*s,  8*s, 8*s);  // right leg
             ctx.fillStyle = '#3a1a00'; ctx.fillRect(px+10*s, py+44*s,  8*s, 4*s);  // boot L
             ctx.fillStyle = '#3a1a00'; ctx.fillRect(px+22*s, py+44*s,  8*s, 4*s);  // boot R
+        } else if (npc.id === 'tidecenter_nurse') {
+            // Nurse — white uniform, teal cross hat, kind face
+            ctx.fillStyle = '#e8f4f8'; ctx.fillRect(px+10*s, py+18*s, 20*s, 22*s); // uniform
+            ctx.fillStyle = '#c8e8f0'; ctx.fillRect(px+12*s, py+20*s, 16*s, 10*s); // apron front
+            ctx.fillStyle = '#c08870'; ctx.fillRect(px+14*s, py+6*s,  12*s, 12*s); // face
+            ctx.fillStyle = '#ff8080'; ctx.fillRect(px+12*s, py+2*s,  16*s,  6*s); // hat base
+            ctx.fillStyle = '#fff';    ctx.fillRect(px+18*s, py+2*s,   4*s,  6*s); // hat white
+            ctx.fillStyle = '#40c0d0'; // teal cross on hat
+            ctx.fillRect(px+19*s, py+1*s, 2*s, 6*s);
+            ctx.fillRect(px+18*s, py+3*s, 4*s, 2*s);
+            ctx.fillStyle = '#b07040'; ctx.fillRect(px+12*s, py+4*s, 16*s, 4*s); // hair
+            ctx.fillStyle = '#e0e0e0'; ctx.fillRect(px+10*s, py+40*s, 8*s, 8*s); ctx.fillRect(px+22*s, py+40*s, 8*s, 8*s);
+            ctx.fillStyle = '#d0b0a0'; ctx.fillRect(px+10*s, py+46*s, 8*s, 2*s); ctx.fillRect(px+22*s, py+46*s, 8*s, 2*s);
+        } else if (npc.id === 'tidecenter_pc') {
+            // PC terminal — glowing blue monitor
+            ctx.fillStyle = '#0a1820'; ctx.fillRect(px+2*s,  py+6*s,  36*s, 26*s); // outer frame
+            ctx.fillStyle = '#1a2a40'; ctx.fillRect(px+4*s,  py+8*s,  32*s, 24*s); // body
+            ctx.fillStyle = '#40c8ff'; ctx.fillRect(px+6*s,  py+10*s, 28*s, 18*s); // screen glow
+            ctx.fillStyle = '#204060'; ctx.fillRect(px+8*s,  py+12*s, 24*s, 14*s); // screen inner
+            ctx.fillStyle = '#40e8ff';
+            ctx.fillRect(px+10*s, py+15*s, 10*s, 1*s);
+            ctx.fillRect(px+10*s, py+18*s, 16*s, 1*s);
+            ctx.fillRect(px+10*s, py+21*s, 8*s,  1*s);
+            ctx.fillStyle = '#1a2a40'; ctx.fillRect(px+14*s, py+32*s, 12*s, 4*s); // stand
+            ctx.fillStyle = '#2a3a50'; ctx.fillRect(px+8*s,  py+36*s, 24*s, 4*s); // base
         } else {
             // Default / elder_sota — Robe
             ctx.fillStyle = '#7a5a30'; ctx.fillRect(px+10*s, py+18*s, 20*s, 28*s);
@@ -1252,6 +1528,21 @@ const OverworldEngine = (() => {
         toggleActionMenu,
         drawSprite,
         SPRITE_PAINTERS,
+
+        teleportPlayer(tx, ty) {
+            player.x = tx; player.y = ty;
+            player.px = tx * TILE_SIZE; player.py = ty * TILE_SIZE;
+            player.targetPx = player.px; player.targetPy = player.py;
+            player.moving = false;
+            player.pendingEncounter = false;
+            interactPrompt = null;
+            inBattle = false;
+        },
+
+        // Enter the Tidecenter interior map directly (used by blackout)
+        enterTidecenter() {
+            loadMap('tidecenter');
+        },
 
         pauseLoop() {
             if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
