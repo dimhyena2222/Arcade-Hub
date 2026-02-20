@@ -280,7 +280,13 @@ const BattleEngine = (() => {
             }
             if (player.stats.vit <= 0) {
                 statusMsg(`${player.name} has fainted!`);
-                setTimeout(() => endBattle('lose'), 1000);
+                // Check if any other party member can fight
+                const nextAlive = Game.state.party.find(c => c !== player && c.stats.vit > 0);
+                if (nextAlive) {
+                    setTimeout(() => Game.showBattleSwitchPanel(true), 900);
+                } else {
+                    setTimeout(() => endBattle('lose'), 1000);
+                }
                 return;
             }
             callback();
@@ -337,7 +343,12 @@ const BattleEngine = (() => {
                     enemy.name, state.playerCreature.name, () => {
                         if (state.playerCreature.stats.vit <= 0) {
                             statusMsg(`${state.playerCreature.name} has fainted!`);
-                            setTimeout(() => endBattle('lose'), 900);
+                            const nextAlive = Game.state.party.find(c => c !== state.playerCreature && c.stats.vit > 0);
+                            if (nextAlive) {
+                                setTimeout(() => Game.showBattleSwitchPanel(true), 900);
+                            } else {
+                                setTimeout(() => endBattle('lose'), 900);
+                            }
                         } else {
                             showActionPanel();
                         }
@@ -447,8 +458,30 @@ const BattleEngine = (() => {
         openSwitch() {
             if (state.turnPhase !== 'action') return;
             Game.playSound('select');
-            if (Game.state.party.length <= 1) { statusMsg('No other creatures!'); return; }
-            Game.openMenu('switch-battle');
+            const others = Game.state.party.filter(c => c !== state.playerCreature && c.stats.vit > 0);
+            if (others.length === 0) { statusMsg('No other usable companions!'); return; }
+            Game.showBattleSwitchPanel(false);
+        },
+
+        // Called by game.js execBattleSwitch after a forced (faint) switch
+        resumeAfterForcedSwitch() {
+            const player = state.playerCreature;
+            const enemy  = state.enemyCreature;
+            const move   = enemyPickMove();
+            statusMsg(`${enemy.name} attacks!`);
+            performMove(enemy, player, move, enemy.name, player.name, () => {
+                if (player.stats.vit <= 0) {
+                    statusMsg(`${player.name} has fainted!`);
+                    const nextAlive = Game.state.party.find(c => c !== player && c.stats.vit > 0);
+                    if (nextAlive) {
+                        setTimeout(() => Game.showBattleSwitchPanel(true), 900);
+                    } else {
+                        setTimeout(() => endBattle('lose'), 1000);
+                    }
+                } else {
+                    showActionPanel();
+                }
+            });
         },
 
         tryCatch() {

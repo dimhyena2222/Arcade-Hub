@@ -381,7 +381,6 @@
         <div class="tc-party-list" id="tc-party-list"></div>
         <div class="tc-buttons">
             <button class="tc-btn tc-btn-rest" id="tc-rest-btn" onclick="Game.tcRestCompanions()">REST COMPANIONS</button>
-            <button class="tc-btn tc-btn-pc"   id="tc-pc-btn"   onclick="Game.openPCStorage()">💻 PC STORAGE</button>
             <button class="tc-btn tc-btn-close"                  onclick="Game.closeTidecenter()">✕ LEAVE</button>
         </div>
     </div>
@@ -420,6 +419,32 @@
         <div class="bag-detail-title">💼 BAG</div>
         <div class="bag-detail-content" id="bag-detail-content"></div>
         <button class="tc-btn tc-btn-close" onclick="Game.closeBagDetail()">✕ CLOSE</button>
+    </div>
+</div>
+
+<!-- BATTLE SWITCH POPUP -->
+<div id="battle-switch-overlay" class="bswitch-overlay hidden">
+    <div class="bswitch-panel">
+        <div class="bswitch-title" id="bswitch-title">SWITCH COMPANION</div>
+        <div class="bswitch-subtitle" id="bswitch-subtitle">Choose who to send out:</div>
+        <div class="bswitch-list" id="bswitch-list"></div>
+        <div class="bswitch-footer">
+            <button class="tc-btn tc-btn-close" id="bswitch-cancel-btn" onclick="Game.closeBattleSwitch()">✕ CANCEL</button>
+        </div>
+    </div>
+</div>
+
+<!-- LEARN MOVE POPUP -->
+<div id="learnmove-overlay" class="learnmove-overlay hidden">
+    <div class="learnmove-panel">
+        <div class="learnmove-title">NEW MOVE AVAILABLE</div>
+        <div class="learnmove-subtitle" id="learnmove-subtitle"></div>
+        <div class="learnmove-new-card" id="learnmove-new-card"></div>
+        <div class="learnmove-prompt">Replace which move? (or skip)</div>
+        <div class="learnmove-slots" id="learnmove-slots"></div>
+        <div class="learnmove-footer">
+            <button class="tc-btn tc-btn-close" onclick="Game.skipLearnMove()">✕ DON'T LEARN</button>
+        </div>
     </div>
 </div>
 

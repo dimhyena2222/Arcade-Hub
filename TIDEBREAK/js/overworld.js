@@ -79,7 +79,7 @@ const OverworldEngine = (() => {
                 [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 28
                 [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0], // row 29
             ],
-            encounterZones: [T.GRASS, T.SHORE, T.ROUTE, T.TALL],
+            encounterZones: [T.ROUTE, T.TALL],
             playerStart: { x: 13, y: 12 },
             npcs: [
                 { id: 'prof_maris',      tile: { x: 13, y: 9  } },
@@ -97,13 +97,13 @@ const OverworldEngine = (() => {
         tidecenter: {
             tiles: [
                 // 0  1  2  3  4  5  6  7  8  9 10 11
-                [ 4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4], // row 0 — top wall
-                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 1
-                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 2
+                [ 4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4], // row 0 — back wall
+                [ 4, 16, 17, 17, 17, 17, 17, 17, 17, 17, 16,  4], // row 1 — CENTER tile corners (pillar deco)
+                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 2 — nurse (col3) + PC (col9)
                 [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 3
                 [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 4
                 [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 5
-                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 6
+                [ 4, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,  4], // row 6 — player walks here
                 [ 4,  4,  4,  4,  4, 18,  4,  4,  4,  4,  4,  4], // row 7 — exit at col 5
                 [ 4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4], // row 8
             ],
@@ -118,7 +118,7 @@ const OverworldEngine = (() => {
             ambientWeather: ['CLEAR'],
             isInterior: true,
             exitMap: 'brinefall',
-            exitPos:  { x: 19, y: 7 },  // tile in front of the Tidecenter door outside
+            exitPos:  { x: 19, y: 7 },
         },
     };
 
@@ -210,11 +210,17 @@ const OverworldEngine = (() => {
                 break;
             }
             case T.GRASS: {
-                const dark = '#1a4d22';
-                const light = '#3db87a';
-                // Random blades
-                [[2,2],[6,4],[9,2],[3,8],[7,9],[10,7]].forEach(([px,py]) => {
-                    P(px, py, light); P(px, py+1, dark);
+                // Short safe grass — bright, low, no encounters
+                const base  = '#2e7a3a';
+                const light = '#48c870';
+                const dark  = '#1c5028';
+                ox.fillStyle = base; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                // Short blade clusters — only 1 pixel tall, well-spaced
+                [[1,8],[5,5],[9,9],[3,3],[7,6],[11,10],[0,11],[6,2],[10,4]].forEach(([px,py]) => {
+                    P(px, py, light);
+                });
+                [[2,9],[4,6],[8,10],[11,3]].forEach(([px,py]) => {
+                    P(px, py, dark);
                 });
                 break;
             }
@@ -297,25 +303,31 @@ const OverworldEngine = (() => {
                 break;
             }
             case T.ROUTE: {
-                // Dark tall grass on a route — encounter zone, darker than GRASS
-                const dark  = '#164020';
-                const light = '#2a8050';
-                const mid   = '#1e5828';
-                // Fill base
+                // ENCOUNTER ZONE: dense tall grass on routes — visually distinct
+                const mid   = '#164a20';
+                const dark  = '#0c2e14';
+                const light = '#28c060';
+                const tip   = '#50e888';
                 ox.fillStyle = mid; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-                // Blade clusters
-                [[1,1],[4,3],[7,1],[2,7],[5,9],[9,5],[10,2],[0,10],[6,6],[3,0],[8,8],[11,4]].forEach(([px,py]) => {
-                    P(px, py, light); P(px, py+1, dark);
+                // Tall 3-pixel blades — clearly taller than safe grass
+                [[0,3],[3,1],[6,2],[9,0],[1,7],[4,5],[7,8],[10,4],[2,9],[5,6],[8,10],[11,7]].forEach(([px,py]) => {
+                    P(px, py,   1, 1, tip);
+                    P(px, py+1, 1, 1, light);
+                    P(px, py+2, 1, 1, dark);
                 });
                 break;
             }
             case T.TALL: {
-                // Slightly lighter tall grass
-                const dark  = '#1a4d22';
-                const light = '#32a060';
-                ox.fillStyle = '#245230'; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-                [[2,0],[5,2],[9,1],[3,6],[7,8],[10,5],[0,4],[6,10],[11,7],[1,9],[4,3],[8,0]].forEach(([px,py]) => {
-                    P(px, py, light); P(px, py+1, dark);
+                // ENCOUNTER ZONE: tall grass (village outskirts) — yellow-green tint
+                const mid   = '#1e5028';
+                const dark  = '#123018';
+                const light = '#38b058';
+                const tip   = '#80e060';
+                ox.fillStyle = mid; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                [[1,2],[4,0],[7,3],[10,1],[0,8],[3,6],[6,9],[9,5],[2,10],[5,7],[8,4],[11,8]].forEach(([px,py]) => {
+                    P(px, py,   1, 1, tip);
+                    P(px, py+1, 1, 1, light);
+                    P(px, py+2, 1, 1, dark);
                 });
                 break;
             }
@@ -360,36 +372,39 @@ const OverworldEngine = (() => {
                 break;
             }
             case T.FLOOR: {
-                // Interior floor — dark checkered stone tiles
-                const dark  = '#222230';
-                const light = '#2e2e40';
-                const grout = '#181820';
-                ox.fillStyle = dark; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-                // Grout lines
+                // Tidecenter interior floor — clean white/cream tiles with teal grout
+                const tile1 = '#d8e8ea';  // light cream tile
+                const tile2 = '#c8d8da';  // slightly darker alternating tile
+                const grout = '#5aaabb';  // teal grout lines
+                // 2×2 checkerboard large tiles
+                for (let ty = 0; ty < 2; ty++) {
+                    for (let tx = 0; tx < 2; tx++) {
+                        ox.fillStyle = (tx + ty) % 2 === 0 ? tile1 : tile2;
+                        ox.fillRect(tx*6*vP + 1, ty*6*vP + 1, 6*vP - 1, 6*vP - 1);
+                    }
+                }
+                // Teal grout grid
                 ox.fillStyle = grout;
-                ox.fillRect(0, 5*vP, TILE_SIZE, vP/2);
-                ox.fillRect(0, 10*vP, TILE_SIZE, vP/2);
-                ox.fillRect(6*vP, 0, vP/2, TILE_SIZE);
-                // Subtle stone panel shading
-                ox.fillStyle = light;
-                ox.fillRect(vP, vP, 5*vP, 4*vP);
-                ox.fillRect(7*vP, 6*vP, 4*vP, 4*vP);
+                ox.fillRect(0, 0, TILE_SIZE, 1);           // top edge
+                ox.fillRect(0, 0, 1, TILE_SIZE);           // left edge
+                ox.fillRect(6*vP, 0, 1, TILE_SIZE);        // mid vertical
+                ox.fillRect(0, 6*vP, TILE_SIZE, 1);        // mid horizontal
                 break;
             }
             case T.EXIT: {
-                // Exit doormat — green tinted with arrow indicator
-                const base = '#2a4a2a';
-                const stripe = '#3a6a3a';
-                const arrow = '#60c060';
+                // Exit doormat — teal/dark with chevron arrows pointing down
+                const base   = '#0d3040';
+                const mat    = '#1a5060';
+                const stripe = '#40c8d0';
                 ox.fillStyle = base; ox.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+                ox.fillStyle = mat;  ox.fillRect(vP, vP, 10*vP, 10*vP);
+                // Chevron down arrows
                 ox.fillStyle = stripe;
-                ox.fillRect(2*vP, 2*vP, TILE_SIZE-4*vP, 2*vP);
-                ox.fillRect(2*vP, 9*vP, TILE_SIZE-4*vP, 2*vP);
-                // Down-arrow (exit indicator)
-                ox.fillStyle = arrow;
-                ox.fillRect(5*vP, 4*vP, 2*vP, 4*vP);
-                ox.fillRect(4*vP, 6*vP, 4*vP, 2*vP);
-                ox.fillRect(3*vP, 7*vP, 6*vP, 1*vP);
+                [[4,2],[5,3],[6,2]].forEach(([px,py]) => P(px, py, '#40c8d0'));
+                [[4,5],[5,6],[6,5]].forEach(([px,py]) => P(px, py, '#40c8d0'));
+                // "EXIT" dot
+                ox.fillStyle = '#40c8d0';
+                ox.fillRect(4*vP, 9*vP, 4*vP, vP);
                 break;
             }
         }
@@ -900,10 +915,12 @@ const OverworldEngine = (() => {
         const facedTile = currentMap.tiles[ty][tx];
         const facedNpc  = currentMap.npcs.find(n => n.tile.x === tx && n.tile.y === ty);
         const facedExit = facedTile === T.EXIT && currentMap.isInterior;
+        // Only show "Enter Tidecenter" prompt when NOT already inside an interior
+        const facedCenter = facedTile === T.CENTER && !currentMap.isInterior;
 
-        if (facedNpc || facedTile === T.CENTER || facedTile === T.SIGN || facedExit) {
+        if (facedNpc || facedCenter || facedTile === T.SIGN || facedExit) {
             let label = '[ E ] Interact';
-            if (facedTile === T.CENTER) label = '[ E ] Enter Tidecenter';
+            if (facedCenter)           label = '[ E ] Enter Tidecenter';
             if (facedExit)             label = '[ E ] Exit';
             if (facedNpc) {
                 const npcData = NPCS[facedNpc.id];
@@ -1025,8 +1042,8 @@ const OverworldEngine = (() => {
             return;
         }
 
-        // Entering the Tidecenter from outside (CENTER tile on overworld)
-        if (facedTile === T.CENTER) {
+        // Entering the Tidecenter from outside (CENTER tile on overworld — not inside an interior)
+        if (facedTile === T.CENTER && !currentMap.isInterior) {
             loadMap('tidecenter');
             return;
         }
@@ -1174,6 +1191,18 @@ const OverworldEngine = (() => {
         ctx.clearRect(0, 0, renderW, renderH);
         ctx.save();
         ctx.translate(-camera.x, -camera.y);
+
+        // Interior: fill background with a warm white room colour before tiles
+        if (isInterior) {
+            ctx.fillStyle = '#e8f0f0';
+            ctx.fillRect(0, 0, mapCols * TILE_SIZE, mapRows * TILE_SIZE);
+            // Teal top wainscoting stripe along row 0
+            ctx.fillStyle = '#40b8c8';
+            ctx.fillRect(0, 0, mapCols * TILE_SIZE, TILE_SIZE * 1.5);
+            // Cream wall background rows 1-6
+            ctx.fillStyle = '#f0f8f8';
+            ctx.fillRect(0, TILE_SIZE * 1.5, mapCols * TILE_SIZE, TILE_SIZE * 5.5);
+        }
 
         // Frame calculation for animated tiles
         const frameIndex = Math.floor(time / 400) % 4;

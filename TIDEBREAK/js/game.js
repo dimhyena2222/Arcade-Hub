@@ -530,7 +530,7 @@ const Game = (() => {
                 showScreen('screen-options');
                 break;
             case 'switch-battle':
-                showBattleSwitchPanel();
+                showBattleSwitchPanel(false);
                 break;
             default:
                 break;
@@ -820,83 +820,241 @@ const Game = (() => {
             const alreadyKnows = creature.moves.some(m => m.id === newMoveId);
             if (!alreadyKnows && MOVES[newMoveId]) {
                 if (creature.moves.length < 4) {
+                    // Slot free — learn automatically
                     creature.moves.push(MOVES[newMoveId]);
                     notify(`${creature.name} learned ${MOVES[newMoveId].name}!`, 'info');
                 } else {
-                    notify(`${creature.name} could learn ${MOVES[newMoveId].name} but knows 4 moves already.`, 'neutral');
+                    // All 4 slots full — open the swap popup
+                    setTimeout(() => openLearnMove(creature, newMoveId), 600);
                 }
             }
         }
         updatePartyStrip();
     }
 
-    // ── BATTLE SWITCH PANEL ──────────────────────────────────
-    function showBattleSwitchPanel() {
+    // ── LEARN MOVE POPUP ─────────────────────────────────────
+    let _learnMoveContext = null; // { creature, newMoveId }
+
+    function openLearnMove(creature, newMoveId) {
+        const newMove = MOVES[newMoveId];
+        if (!newMove) return;
+        _learnMoveContext = { creature, newMoveId };
+
+        const overlay = document.getElementById('learnmove-overlay');
+        if (!overlay) return;
+
+        // Subtitle
+        document.getElementById('learnmove-subtitle').textContent =
+            `${creature.name} wants to learn ${newMove.name}, but already knows 4 moves.`;
+
+        // New move preview card
+        const newCard = document.getElementById('learnmove-new-card');
+        const power = newMove.power ? `PWR ${newMove.power}` : 'Status';
+        const acc   = newMove.accuracy ? `ACC ${newMove.accuracy}%` : '';
+        const aet   = newMove.aetCost  ? `AET ${newMove.aetCost}` : '';
+        newCard.innerHTML = `
+            <div class="learnmove-new-name">${newMove.name}</div>
+            <div class="learnmove-new-meta">${[newMove.type, power, acc, aet].filter(Boolean).join(' · ')}</div>
+            ${newMove.desc ? `<div class="learnmove-new-desc">${newMove.desc}</div>` : ''}
+        `;
+
+        // Existing move slots
+        const slots = document.getElementById('learnmove-slots');
+        slots.innerHTML = '';
+        creature.moves.forEach((move, i) => {
+            const pw = move.power ? `PWR ${move.power}` : 'Status';
+            const ac = move.accuracy ? `ACC ${move.accuracy}%` : '';
+            const ae = move.aetCost  ? `AET ${move.aetCost}` : '';
+            const btn = document.createElement('div');
+            btn.className = 'learnmove-slot';
+            btn.innerHTML = `
+                <span class="learnmove-slot-name">${move.name}</span>
+                <span class="learnmove-slot-meta">${[move.type, pw, ac, ae].filter(Boolean).join(' · ')}</span>
+            `;
+            btn.addEventListener('click', () => execLearnMove(i));
+            slots.appendChild(btn);
+        });
+
+        overlay.classList.remove('hidden');
+        playSound('select');
+    }
+
+    function execLearnMove(slotIndex) {
+        if (!_learnMoveContext) return;
+        const { creature, newMoveId } = _learnMoveContext;
+        const newMove = MOVES[newMoveId];
+        if (!newMove) return;
+        const oldName = creature.moves[slotIndex]?.name ?? '???';
+        creature.moves[slotIndex] = newMove;
+        notify(`${creature.name} forgot ${oldName} and learned ${newMove.name}!`, 'success');
+        playSound('select');
+        _learnMoveContext = null;
+        document.getElementById('learnmove-overlay')?.classList.add('hidden');
+        updatePartyStrip();
+    }
+
+    function skipLearnMove() {
+        if (!_learnMoveContext) return;
+        const { creature, newMoveId } = _learnMoveContext;
+        const newMove = MOVES[newMoveId];
+        notify(`${creature.name} did not learn ${newMove?.name ?? 'the new move'}.`, 'neutral');
+        playSound('back');
+        _learnMoveContext = null;
+        document.getElementById('learnmove-overlay')?.classList.add('hidden');
+    }
+
+
+    // ── BATTLE SWITCH POPUP ──────────────────────────────────
+    // forceSwitch: if true, cancel button is hidden (faint-forced swap)
+    function showBattleSwitchPanel(forceSwitch = false) {
+        _battleSwitchForced = forceSwitch;
         const battleState = BattleEngine.getState();
         const active = battleState.playerCreature;
 
-        const log = document.getElementById('battle-status-log');
-        if (!log) return;
-
-        document.getElementById('switch-list-temp')?.remove();
-
-        const switchDiv = document.createElement('div');
-        switchDiv.id = 'switch-list-temp';
-        switchDiv.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;padding:8px 0;';
-
-        state.party.forEach((creature) => {
-            if (creature === active) return;
-            const btn = document.createElement('button');
-            btn.className = 'battle-btn';
-            btn.style.cssText = 'font-size:0.75rem;padding:6px 10px;';
-            const hp = Math.round((creature.stats.vit / creature.stats.maxVit) * 100);
-            btn.textContent = `${creature.name} Lv.${creature.level} (${hp}%)`;
-            if (creature.stats.vit <= 0) { btn.disabled = true; btn.style.opacity = '0.4'; }
-            btn.addEventListener('click', () => {
-                switchDiv.remove();
-                playSound('select');
-                battleState.playerCreature = creature;
-                setBattleStatus(`Go, ${creature.name}!`);
-                document.getElementById('player-creature-name').textContent = creature.name + ' Lv.' + creature.level;
-                document.getElementById('player-types').innerHTML = creature.types.map(t =>
-                    `<span class="type-badge type-${t.toLowerCase()}">${t}</span>`
-                ).join('');
-                const canvas = document.getElementById('player-sprite-el');
-                if (canvas && OverworldEngine.drawSprite) {
-                    const ctx = canvas.getContext('2d');
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    OverworldEngine.drawSprite(ctx, creature.defId, 0, 0, canvas.width);
-                }
-                const pHp  = document.getElementById('player-hp-fill');
-                const pAet = document.getElementById('player-aet-fill');
-                if (pHp)  pHp.style.width  = Math.max(0, (creature.stats.vit / creature.stats.maxVit) * 100) + '%';
-                if (pAet) pAet.style.width = Math.max(0, (creature.stats.aet / creature.stats.maxAet) * 100) + '%';
-                document.getElementById('action-panel').style.display = 'flex';
-            });
-            switchDiv.appendChild(btn);
-        });
-
-        if (!switchDiv.children.length) {
+        const available = state.party.filter(c => c !== active && c.stats.vit > 0);
+        if (available.length === 0) {
             setBattleStatus('No other usable companions!');
             return;
         }
-        log.appendChild(switchDiv);
+
+        const overlay = document.getElementById('battle-switch-overlay');
+        const list    = document.getElementById('bswitch-list');
+        const subtitle = document.getElementById('bswitch-subtitle');
+        const cancelBtn = document.getElementById('bswitch-cancel-btn');
+        if (!overlay || !list) return;
+
+        subtitle.textContent = forceSwitch
+            ? `${active ? active.name : 'Your companion'} fainted! Choose who to send out:`
+            : 'Choose who to send out:';
+
+        // Hide cancel on forced switch (faint) — must pick someone
+        cancelBtn.style.display = forceSwitch ? 'none' : '';
+
+        list.innerHTML = '';
+        state.party.forEach((creature) => {
+            if (creature === active) return;
+            const hp = Math.round((creature.stats.vit / creature.stats.maxVit) * 100);
+            const fainted = creature.stats.vit <= 0;
+
+            const row = document.createElement('div');
+            row.className = 'bswitch-row' + (fainted ? ' bswitch-fainted' : '');
+
+            const hpColor = hp < 25 ? '#e05555' : hp < 50 ? '#e8b84b' : '#55c3a8';
+            row.innerHTML = `
+                <div class="bswitch-sprite-wrap">
+                    <canvas class="bswitch-canvas" width="48" height="48" data-defid="${creature.defId}"></canvas>
+                </div>
+                <div class="bswitch-info">
+                    <div class="bswitch-name">${creature.name}</div>
+                    <div class="bswitch-lv">Lv.${creature.level} · ${creature.types.join('/')}</div>
+                    <div class="bswitch-bar-wrap">
+                        <div class="bswitch-bar" style="width:${hp}%;background:${hpColor}"></div>
+                    </div>
+                    <div class="bswitch-hp">${fainted ? 'FAINTED' : `${creature.stats.vit}/${creature.stats.maxVit} VIT`}</div>
+                </div>
+                ${!fainted ? `<button class="bswitch-send-btn" onclick="Game.execBattleSwitch(${state.party.indexOf(creature)})">SEND OUT ▶</button>` : ''}
+            `;
+            list.appendChild(row);
+        });
+
+        // Draw sprites on the mini canvases
+        requestAnimationFrame(() => {
+            list.querySelectorAll('.bswitch-canvas').forEach(c => {
+                const cx = c.getContext('2d');
+                if (OverworldEngine.drawSprite) OverworldEngine.drawSprite(cx, c.dataset.defid, 0, 0, 48);
+            });
+        });
+
+        overlay.classList.remove('hidden');
+        playSound('select');
+    }
+
+    function closeBattleSwitch() {
+        const overlay = document.getElementById('battle-switch-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        // Restore action panel if not forced
+        const actionPanel = document.getElementById('action-panel');
+        if (actionPanel) actionPanel.style.display = 'flex';
+        playSound('back');
+    }
+
+    function execBattleSwitch(partyIndex) {
+        const overlay = document.getElementById('battle-switch-overlay');
+        if (overlay) overlay.classList.add('hidden');
+
+        const creature = state.party[partyIndex];
+        if (!creature || creature.stats.vit <= 0) return;
+
+        const battleState = BattleEngine.getState();
+        battleState.playerCreature = creature;
+        playSound('select');
+        setBattleStatus(`Go, ${creature.name}!`);
+
+        // Update battle UI
+        document.getElementById('player-creature-name').textContent = creature.name + ' Lv.' + creature.level;
+        document.getElementById('player-types').innerHTML = creature.types.map(t =>
+            `<span class="type-badge type-${t.toLowerCase()}">${t}</span>`
+        ).join('');
+        const canvas = document.getElementById('player-sprite-el');
+        if (canvas && OverworldEngine.drawSprite) {
+            const cx = canvas.getContext('2d');
+            cx.clearRect(0, 0, canvas.width, canvas.height);
+            OverworldEngine.drawSprite(cx, creature.defId, 0, 0, canvas.width);
+        }
+        const pHp  = document.getElementById('player-hp-fill');
+        const pAet = document.getElementById('player-aet-fill');
+        if (pHp)  pHp.style.width  = Math.max(0, (creature.stats.vit / creature.stats.maxVit) * 100) + '%';
+        if (pAet) pAet.style.width = Math.max(0, (creature.stats.aet / creature.stats.maxAet) * 100) + '%';
+
+        if (_battleSwitchForced) {
+            // Forced faint-switch: enemy gets a free attack before we can act
+            _battleSwitchForced = false;
+            setBattleStatus(`Go, ${creature.name}!`);
+            setTimeout(() => BattleEngine.resumeAfterForcedSwitch(), 800);
+        } else {
+            // Voluntary switch: player used their turn, show action panel
+            const actionPanel = document.getElementById('action-panel');
+            if (actionPanel) actionPanel.style.display = 'flex';
+            battleState.turnPhase = 'action';
+        }
     }
 
     // ── BATTLE STATUS LOG ────────────────────────────────────
+    let _statusQueue = [];
+    let _statusBusy  = false;
+
     function setBattleStatus(text) {
+        _statusQueue.push(text);
+        if (!_statusBusy) _drainStatusQueue();
+    }
+
+    function _drainStatusQueue() {
+        if (_statusQueue.length === 0) { _statusBusy = false; return; }
+        _statusBusy = true;
+        const text = _statusQueue.shift();
         const log = document.getElementById('battle-status-log');
-        if (!log) return;
-        // Fade out old message
+        if (!log) { _drainStatusQueue(); return; }
+
+        // Fade out the current message first
         const old = log.querySelector('.battle-status-msg');
         if (old) {
             old.classList.add('status-fade');
-            setTimeout(() => old.remove(), 250);
+            setTimeout(() => {
+                old.remove();
+                _showStatusMsg(log, text);
+            }, 160);
+        } else {
+            _showStatusMsg(log, text);
         }
+    }
+
+    function _showStatusMsg(log, text) {
         const msg = document.createElement('div');
         msg.className = 'battle-status-msg';
         msg.textContent = text;
         log.appendChild(msg);
+        // Hold each message for 900ms before showing next
+        setTimeout(() => _drainStatusQueue(), 900);
     }
 
     // ── NOTIFICATIONS ────────────────────────────────────────
@@ -1123,8 +1281,6 @@ const Game = (() => {
         if (dlg) dlg.textContent = 'Welcome to the Tidecenter! Your companions can rest here.';
         const restBtn = document.getElementById('tc-rest-btn');
         if (restBtn) restBtn.textContent = 'REST COMPANIONS';
-        const pcBtn = document.getElementById('tc-pc-btn');
-        if (pcBtn) pcBtn.disabled = false;
         _renderTCParty();
     }
 
@@ -1388,6 +1544,12 @@ const Game = (() => {
         pcWithdrawCreature,
         openBagDetail,
         closeBagDetail,
+        closeBattleSwitch,
+        execBattleSwitch,
+        showBattleSwitchPanel,
+        openLearnMove,
+        execLearnMove,
+        skipLearnMove,
 
         // Expose battle sub-object so HTML onclick="Game.battle.X()" works
         get battle() { return BattleEngine; },
