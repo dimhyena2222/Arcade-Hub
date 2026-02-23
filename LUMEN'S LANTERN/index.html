@@ -24,6 +24,10 @@
           <div id="glow-label">GLOW</div>
           <div id="glow-charges"></div>
         </div>
+        <div id="coin-panel">
+          <div id="coin-label">COINS</div>
+          <div id="coin-count-hud">🌕 0</div>
+        </div>
         <div id="cycle-panel">
           <canvas id="cycleCanvas" width="60" height="60"></canvas>
         </div>
@@ -81,6 +85,39 @@
         <p class="victory-tagline"><em>You are the light, Lumen.</em></p>
         <button id="replay-btn" class="btn btn-primary">✦ Play Again</button>
         <button id="hub-btn" class="btn btn-ghost" onclick="window.location.href='../index.html'">← Arcade Hub</button>
+      </div>
+
+      <!-- Shop Panel -->
+      <div id="shop-panel" class="hidden panel" style="min-width:420px">
+        <div class="shop-header">
+          <span class="shop-npc-icon">🪲</span>
+          <div>
+            <h2 class="shop-title">Glintwick's Emporium</h2>
+            <p class="shop-tagline">"A sprite with coins! Come, come — see my wares…"</p>
+          </div>
+        </div>
+        <div id="coin-display-shop">You have: <span id="shop-coin-count">0</span> 🌕</div>
+        <div id="shop-items">
+          <div class="shop-item">
+            <span class="shop-item-icon">✦✦</span>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Double Float</div>
+              <div class="shop-item-desc">Tap ↑ while falling for a second lift burst!</div>
+              <div class="shop-item-cost">10 🌕</div>
+            </div>
+            <button class="btn btn-secondary shop-buy" id="buy-doubleJump">Buy  10 🌕</button>
+          </div>
+          <div class="shop-item">
+            <span class="shop-item-icon">🌿</span>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Vine Dash</div>
+              <div class="shop-item-desc">Press E near a glowing vine anchor to dash toward it!</div>
+              <div class="shop-item-cost">15 🌕</div>
+            </div>
+            <button class="btn btn-secondary shop-buy" id="buy-vineSwing">Buy  15 🌕</button>
+          </div>
+        </div>
+        <button id="shop-close-btn" class="btn btn-ghost">Close Shop  ✕</button>
       </div>
 
     </div><!-- /ui-overlay -->

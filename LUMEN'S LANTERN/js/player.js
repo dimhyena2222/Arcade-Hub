@@ -27,6 +27,10 @@ class Player {
     this.invincible  = 0;
     this.stunTimer   = 0;
 
+    this.abilities   = { doubleJump: false, vineSwing: false };
+    this.airJumped   = false;   // has double-float been used this air session?
+    this.prevUp      = false;   // edge-detect for double-float trigger
+
     this.trail       = [];
     this.orbPulse    = 0;
     this.stepPulse   = 0;
@@ -60,6 +64,15 @@ class Player {
       else             this.vx = Math.min(0, this.vx + FRIC * dt);
     }
 
+    // Double-float burst: tap ↑ while falling (edge-detect, once per air session)
+    const upJustPressed = up && !this.prevUp;
+    if (upJustPressed && !this.onGround && this.vy > 40 && this.abilities.doubleJump && !this.airJumped) {
+      this.vy = -255;
+      this.airJumped = true;
+      this.wingTimer = 3.0;   // big wing flap
+      AudioManager.playSFX('collect');
+    }
+
     // Float upward — continuous while held
     this.floating = up && !this.onGround;
     if (up) {
@@ -68,6 +81,7 @@ class Player {
       this.wingTimer += dt * 7;
       this.onGround = false;
     }
+    this.prevUp = up;
 
     // Gentle nudge down if held
     if (down && !this.onGround) {
@@ -100,6 +114,7 @@ class Player {
       this.y        = gY - this.h;
       this.vy       = 0;
       this.onGround = true;
+      this.airJumped = false;   // reset double-float on landing
     } else {
       this.onGround = false;
     }
