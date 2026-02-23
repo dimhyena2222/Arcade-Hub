@@ -1,0 +1,378 @@
+/* ============================================================
+   LUMEN'S LANTERN — Stylesheet
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --cream:   #fdf6e8;
+  --amber:   #f4b942;
+  --gold:    #e8c96d;
+  --warm:    #c9884a;
+  --forest:  #2a4a2e;
+  --deep:    #101820;
+  --glow:    #ffe47a;
+  --purple:  #4a2a6e;
+  --shadow:  #1a0a2e;
+  --radius:  14px;
+  --font:    'Quicksand', 'Segoe UI', sans-serif;
+}
+
+body {
+  background: var(--deep);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: var(--font);
+  overflow: hidden;
+}
+
+/* ── Container & Canvas ───────────────────────────────────── */
+#game-container {
+  position: relative;
+  width: 800px;
+  height: 500px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow:
+    0 0 60px rgba(255, 210, 80, 0.25),
+    0 0 120px rgba(255, 160, 40, 0.12),
+    0 8px 32px rgba(0,0,0,0.6);
+}
+
+#gameCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── UI Overlay ───────────────────────────────────────────── */
+#ui-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Everything inside overlay that needs clicks */
+#ui-overlay button,
+#ui-overlay a { pointer-events: all; }
+
+/* ── HUD ──────────────────────────────────────────────────── */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 10px 14px;
+  pointer-events: none;
+}
+
+#mission-panel {
+  background: rgba(10, 8, 20, 0.65);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,200,80,0.25);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-width: 220px;
+}
+
+#mission-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--amber);
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+#mission-desc {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cream);
+  line-height: 1.3;
+}
+
+#mission-progress {
+  font-size: 11px;
+  color: var(--gold);
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+#glow-panel {
+  background: rgba(10, 8, 20, 0.65);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,200,80,0.25);
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+#glow-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--amber);
+  text-transform: uppercase;
+}
+
+#glow-charges {
+  display: flex;
+  gap: 5px;
+}
+
+.glow-orb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--glow);
+  box-shadow: 0 0 8px var(--amber), 0 0 16px rgba(255,210,80,0.5);
+  transition: all 0.3s ease;
+}
+
+.glow-orb.lost {
+  background: #2a2a3a;
+  box-shadow: none;
+}
+
+#cycle-panel {
+  background: rgba(10, 8, 20, 0.65);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,200,80,0.25);
+  border-radius: 10px;
+  padding: 5px;
+}
+
+#controls-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,230,150,0.6);
+  background: rgba(0,0,0,0.3);
+  padding: 5px 14px;
+  border-radius: 20px;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
+
+/* ── Shared Panel Styles ──────────────────────────────────── */
+.panel {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(8, 5, 18, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,200,80,0.3);
+  border-radius: 20px;
+  padding: 36px 44px;
+  text-align: center;
+  min-width: 340px;
+  max-width: 480px;
+  box-shadow:
+    0 0 40px rgba(255,180,60,0.15),
+    0 16px 40px rgba(0,0,0,0.7);
+  animation: panelIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.92); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ── Title Screen ─────────────────────────────────────────── */
+#title-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(80,40,10,0.5) 0%, rgba(8,5,18,0.92) 70%);
+  animation: fadeIn 1s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.lantern-deco {
+  font-size: 52px;
+  animation: lanternSway 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px rgba(255, 190, 60, 0.8));
+}
+
+@keyframes lanternSway {
+  0%, 100% { transform: rotate(-4deg); }
+  50%       { transform: rotate(4deg); }
+}
+
+.title-glow {
+  font-size: 38px;
+  font-weight: 700;
+  color: var(--glow);
+  text-shadow:
+    0 0 20px rgba(255,220,80,0.9),
+    0 0 40px rgba(255,180,40,0.6),
+    0 0 70px rgba(255,140,20,0.3);
+  letter-spacing: 2px;
+}
+
+.title-sub {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255,230,180,0.7);
+  letter-spacing: 1px;
+}
+
+/* ── Level Intro ──────────────────────────────────────────── */
+#level-number {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--amber);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+#level-name-big {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--glow);
+  text-shadow: 0 0 18px rgba(255,220,80,0.6);
+  margin-bottom: 8px;
+}
+
+#level-flavour {
+  font-size: 13px;
+  color: rgba(255,230,180,0.65);
+  margin-bottom: 18px;
+  font-style: italic;
+}
+
+#level-mission-card {
+  background: rgba(255,200,80,0.07);
+  border: 1px solid rgba(255,200,80,0.2);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 22px;
+}
+
+.mission-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: var(--amber);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+#level-mission-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cream);
+  line-height: 1.5;
+}
+
+/* ── Complete / Victory / Over ────────────────────────────── */
+.complete-star, .over-moon, .victory-stars {
+  font-size: 36px;
+  margin-bottom: 8px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.victory-stars { letter-spacing: 8px; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.7; transform: scale(1.1); }
+}
+
+.complete-title, .victory-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--glow);
+  text-shadow: 0 0 18px rgba(255,220,80,0.7);
+  margin-bottom: 10px;
+}
+
+.over-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #a080d0;
+  text-shadow: 0 0 18px rgba(140,80,200,0.6);
+  margin-bottom: 10px;
+}
+
+#mission-complete p, #game-over p, #victory-screen p {
+  font-size: 13px;
+  color: rgba(255,230,180,0.75);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.victory-tagline { font-style: italic; color: var(--gold) !important; }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-block;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  padding: 11px 26px;
+  transition: all 0.18s ease;
+  margin: 4px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #f4b942, #e07820);
+  color: #1a0800;
+  box-shadow: 0 4px 16px rgba(240,140,30,0.45), 0 0 24px rgba(255,200,60,0.2);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 6px 22px rgba(240,140,30,0.6), 0 0 32px rgba(255,200,60,0.3);
+}
+
+.btn-primary:active { transform: scale(0.97); }
+
+.btn-secondary {
+  background: rgba(255,200,80,0.1);
+  color: var(--gold);
+  border: 1px solid rgba(255,200,80,0.35);
+}
+
+.btn-secondary:hover {
+  background: rgba(255,200,80,0.18);
+  border-color: var(--amber);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: rgba(255,230,180,0.5);
+  border: 1px solid rgba(255,230,180,0.2);
+  font-size: 12px;
+  padding: 8px 18px;
+}
+
+.btn-ghost:hover {
+  color: var(--cream);
+  border-color: rgba(255,230,180,0.45);
+}
+
+/* ── Utility ──────────────────────────────────────────────── */
+.hidden { display: none !important; }

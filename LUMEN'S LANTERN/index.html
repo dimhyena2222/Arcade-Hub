@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lumen's Lantern</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+    <div id="ui-overlay">
+
+      <!-- HUD (shown while playing) -->
+      <div id="hud" class="hidden">
+        <div id="mission-panel">
+          <div id="mission-label">MISSION</div>
+          <div id="mission-desc"></div>
+          <div id="mission-progress"></div>
+        </div>
+        <div id="glow-panel">
+          <div id="glow-label">GLOW</div>
+          <div id="glow-charges"></div>
+        </div>
+        <div id="cycle-panel">
+          <canvas id="cycleCanvas" width="60" height="60"></canvas>
+        </div>
+      </div>
+
+      <!-- Controls hint -->
+      <div id="controls-hint" class="hidden">
+        ← → Move &nbsp;|&nbsp; Space / ↑ Jump &nbsp;|&nbsp; (double-jump!)
+      </div>
+
+      <!-- Title Screen -->
+      <div id="title-screen">
+        <div class="lantern-deco">🏮</div>
+        <h1 class="title-glow">Lumen's Lantern</h1>
+        <p class="title-sub">A cozy light adventure</p>
+        <button id="start-btn" class="btn btn-primary">✦ Begin Journey</button>
+        <button id="music-btn" class="btn btn-secondary">♪ Music: ON</button>
+        <button id="back-btn" class="btn btn-ghost" onclick="window.location.href='../index.html'">← Arcade Hub</button>
+      </div>
+
+      <!-- Level Intro -->
+      <div id="level-intro" class="hidden panel">
+        <div id="level-number"></div>
+        <div id="level-name-big"></div>
+        <div id="level-flavour"></div>
+        <div id="level-mission-card">
+          <div class="mission-tag">YOUR MISSION</div>
+          <div id="level-mission-text"></div>
+        </div>
+        <button id="play-btn" class="btn btn-primary">Light the way →</button>
+      </div>
+
+      <!-- Mission Complete -->
+      <div id="mission-complete" class="hidden panel">
+        <div class="complete-star">✦</div>
+        <h2 class="complete-title">Mission Complete</h2>
+        <p id="complete-msg"></p>
+        <button id="next-btn" class="btn btn-primary">Continue →</button>
+      </div>
+
+      <!-- Game Over -->
+      <div id="game-over" class="hidden panel">
+        <div class="over-moon">☽</div>
+        <h2 class="over-title">Darkness Falls</h2>
+        <p>Lumen's light faded into shadow…</p>
+        <button id="retry-btn" class="btn btn-primary">✦ Try Again</button>
+        <button id="go-home-btn" class="btn btn-ghost" onclick="window.location.href='../index.html'">← Arcade Hub</button>
+      </div>
+
+      <!-- Victory -->
+      <div id="victory-screen" class="hidden panel">
+        <div class="victory-stars">✦ ✦ ✦</div>
+        <h2 class="victory-title">All Lanterns Relit!</h2>
+        <p class="victory-sub">The forest glows once more.</p>
+        <p class="victory-tagline"><em>You are the light, Lumen.</em></p>
+        <button id="replay-btn" class="btn btn-primary">✦ Play Again</button>
+        <button id="hub-btn" class="btn btn-ghost" onclick="window.location.href='../index.html'">← Arcade Hub</button>
+      </div>
+
+    </div><!-- /ui-overlay -->
+  </div><!-- /game-container -->
+
+  <script src="js/audio.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
