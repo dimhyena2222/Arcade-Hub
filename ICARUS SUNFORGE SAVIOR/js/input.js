@@ -65,6 +65,8 @@ const Input = (() => {
     cannonJust() { return justDown['KeyJ'] || mouse.leftJust; },
     sword()      { return keys['KeyK'] || mouse.right; },
     swordJust()  { return justDown['KeyK'] || mouse.rightJust; },
+    dodge()      { return justDown['KeyF']; },
+    block()      { return keys['KeyF']; },
     pause()      { return justDown['Escape']; },
     enter()      { return justDown['Enter'] || justDown['Space']; },
     dash()       { return justDown['ShiftLeft'] || justDown['ShiftRight']; },

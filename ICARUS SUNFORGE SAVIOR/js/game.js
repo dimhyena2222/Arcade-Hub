@@ -123,6 +123,7 @@ class Game {
     for (const def of pickupDefs) {
       if (def.type === 'health') this.pickups.push(new HealthPickup(def.x, def.y, def.amount));
       if (def.type === 'energy') this.pickups.push(new EnergyPickup(def.x, def.y, def.amount));
+      if (def.type === 'ability') this.pickups.push(new AbilityPickup(def.x, def.y, def.subtype));
     }
 
     // Find boss reference
@@ -153,14 +154,18 @@ class Game {
     this.activeBoss     = null;
     this.damageFlash    = 0;
 
+    this.message      = null;
+    this.messageSub   = null;
+    this.messageTimer = 0;
+
     this._buildWorld();
 
-    // Spawn player on top of the left starting platform (y=200 - h=32)
-    this.player = new Player(150, 168);
+    // Spawn player on ground (Section 0)
+    this.player = new Player(150, 468);
     this.player.particles   = this.particles;
     this.player.projectiles = this.projectiles;
 
-    this.camera.snapTo(400, this.player.y);
+    this.camera.snapTo(this.player.x, this.player.y);
 
     this.state = STATE.PLAYING;
     Audio.playMusic('combat');
@@ -290,6 +295,7 @@ class Game {
 
     // Damage flash
     if (this.damageFlash > 0) this.damageFlash -= dt * 0.006;
+    if (this.messageTimer > 0) this.messageTimer -= dt;
 
     // ── PLATFORMS ──────────────────────────────────────────
     for (const p of this.platforms) {
@@ -300,9 +306,7 @@ class Game {
           this.player.x, this.player.y, this.player.w, this.player.h,
           p.x, p.y, p.w, p.h
         )) {
-          this.player.takeDamage(20);
-          this.damageFlash = 1;
-          this.camera.addShake(4);
+          this._playerHurt(20);
         }
       }
     }
@@ -317,9 +321,9 @@ class Game {
           this.player.x, this.player.y + this.player.h - 4, this.player.w, 4,
           p.x, p.y, p.w, p.h
         )) {
-          this.player.takeDamage(15);
-          this.player.vy = -200;
-          this.damageFlash = 0.8;
+          if (this._playerHurt(15) === 'hit') {
+            this.player.vy = -200;
+          }
         }
       }
     }
@@ -328,7 +332,7 @@ class Game {
     this.camera.follow(this.player, dt);
 
     // ── SECTION DETECTION ──────────────────────────────────
-    const newSection = this._getSectionAt(this.player.y);
+    const newSection = this._getSectionAt(this.player.x);
     if (newSection !== this.currentSection) {
       this.currentSection = newSection;
       this._onSectionEnter(newSection);
@@ -362,7 +366,7 @@ class Game {
     this._updatePlasma(dt);
 
     // ── FALL DEATH ──────────────────────────────────────────
-    if (this.player.y > WORLD_H + 100) {
+    if (this.player.y > WORLD_H + 300) {
       this.player.hp = 0;
       this.player.alive = false;
     }
@@ -383,7 +387,7 @@ class Game {
     this.transitionAlpha = 0.6;
     this.transitionDir   = -1;
     this.transitionName  = SECTION_NAMES[section] || '';
-    this.transitionTimer = 2000;
+    this.transitionTimer = 4000; // Longer transition time
 
     if (section === 3) {
       Audio.playMusic('boss');
@@ -394,10 +398,10 @@ class Game {
     this.camera.addShake(3);
   }
 
-  _getSectionAt(y) {
-    if (y >= SECTION_Y[3]) return 3;
-    if (y >= SECTION_Y[2]) return 2;
-    if (y >= SECTION_Y[1]) return 1;
+  _getSectionAt(x) {
+    if (x >= SECTION_X[3]) return 3;
+    if (x >= SECTION_X[2]) return 2;
+    if (x >= SECTION_X[1]) return 1;
     return 0;
   }
 
@@ -480,8 +484,9 @@ class Game {
   _updatePickups(dt) {
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const pu = this.pickups[i];
+      // Don't cull purely on distance, some are important
       pu.update(dt);
-      if (!pu.alive) { this.pickups.splice(i, 1); continue; }
+      
       if (rectsOverlap(
         this.player.x, this.player.y, this.player.w, this.player.h,
         pu.x, pu.y, pu.w, pu.h
@@ -492,10 +497,24 @@ class Game {
         } else if (pu instanceof EnergyPickup) {
           this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + pu.amount);
           this.score += 50;
+        } else if (pu instanceof AbilityPickup) {
+          if (pu.type === 'double_jump') {
+            this.player.canDoubleJump = true;
+            this.score += 500;
+            // Visual feedback
+            this.particles.explosion(this.player.x, this.player.y, 2, '#00ccff');
+            this.camera.addShake(8);
+            
+            // Set message
+            this.message = "ABILITY ACQUIRED: DOUBLE JUMP";
+            this.messageSub = "(Press JUMP while in air)";
+            this.messageTimer = 4000;
+          }
         }
         pu.alive = false;
         Audio.sfx.checkpoint();
         this.particles.spark(pu.x + 6, pu.y + 6);
+        this.pickups.splice(i, 1);
       }
     }
   }
@@ -529,10 +548,8 @@ class Game {
             this.player.x + 2, this.player.y + 2, this.player.w - 4, this.player.h - 4
           )
         ) {
-          this.player.takeDamage(proj.damage);
-          this.damageFlash = 1;
-          this.camera.addShake(4);
-          proj.hit();
+          const res = this._playerHurt(proj.damage);
+          if (res !== 'dodge') proj.hit();
         }
       }
     }
@@ -567,9 +584,7 @@ class Game {
         this.player.x + 2, this.player.y + 2, this.player.w - 4, this.player.h - 4,
         enemy.x, enemy.y, enemy.w, enemy.h
       )) {
-        this.player.takeDamage(enemy.contactDmg || 10);
-        this.damageFlash = 0.8;
-        this.camera.addShake(5);
+        this._playerHurt(enemy.contactDmg || 10);
       }
     }
   }
@@ -580,10 +595,11 @@ class Game {
     const helion = this.enemies.find(e => e instanceof HelionPrime && e.alive);
     if (helion && helion.phase >= 3 && !this.plasmaRising) {
       this.plasmaRising = true;
-      this.plasmaY = WORLD_H - 200;
+      this.plasmaY = WORLD_H + 200; // Start below visible area
     }
-    if (this.plasmaRising && this.plasmaY > WORLD_H - 1400) {
-      this.plasmaY -= dt * 0.04;
+    // Rise until y=500 (leaving 100-200px safe zone at top/middle)
+    if (this.plasmaRising && this.plasmaY > 500) {
+      this.plasmaY -= dt * 0.015; // Slow rise
       // Particles at surface
       if (Math.random() < 0.3) {
         this.particles.plasma(
@@ -593,19 +609,36 @@ class Game {
       }
       // Damage player
       if (this.player.y + this.player.h > this.plasmaY && this.player.alive && !this.player.invincible) {
-        this.player.takeDamage(2);
-        this.damageFlash = 0.4;
+        this._playerHurt(2);
       }
     }
   }
 
   // ── Victory ───────────────────────────────────────────────
-  _triggerVictory() {
-    setTimeout(() => {
-      this.state = STATE.WIN;
-      Audio.playMusic('win');
-      Audio.sfx.victory();
-    }, 3000);
+  _playerHurt(amount) {
+    const res = this.player.takeDamage(amount);
+    if (res === 'parry') {
+      this.camera.addShake(8);
+      this.particles.explosion(this.player.cx, this.player.cy, 1.5, '#fff');
+      Audio.sfx.victory(); // Use victory sound for parry ping
+      
+      // Stun all nearby enemies
+      for (const e of this.enemies) {
+        const dx = e.cx - this.player.cx;
+        const dy = e.cy - this.player.cy;
+        const distSq = dx*dx + dy*dy;
+        if (distSq < 400*400) {
+          e.stunTimer = 600; // 0.6s stun
+          this.particles.spark(e.cx, e.cy);
+        }
+      }
+      return 'parry';
+    } else if (res === 'hit') {
+      this.damageFlash = 1;
+      this.camera.addShake(4);
+      return 'hit';
+    }
+    return res;
   }
 
   // ── DRAW ──────────────────────────────────────────────────
@@ -686,6 +719,7 @@ class Game {
     for (const e of this.enemies) {
       if (e.alive && this.camera.isVisible(e.x, e.y, e.w, e.h, 64)) {
         e.draw(ctx);
+        if (e._drawStun) e._drawStun(ctx);
       }
     }
 
@@ -708,6 +742,9 @@ class Game {
 
     this.camera.end(ctx);
 
+    // Foreground details
+    drawForeground(ctx, this.camera);
+
     // ── HUD (screen-space) ──────────────────────────────
     if (this.player.alive) {
       UI.drawHUD(ctx, this.player, this.score, this.timer, this.currentSection);
@@ -723,6 +760,25 @@ class Game {
     // Damage flash
     if (this.damageFlash > 0) {
       UI.drawDamageFlash(ctx, this.damageFlash);
+    }
+
+    // Message
+    if (this.messageTimer > 0) {
+      ctx.save();
+      ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, this.messageTimer/500)})`;
+      ctx.fillRect(0, 160, 800, 100);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#00ccff';
+      ctx.shadowBlur = 10; ctx.shadowColor = '#0088cc';
+      ctx.font = "bold 28px monospace";
+      ctx.fillText(this.message, 400, 200);
+      if (this.messageSub) {
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 0;
+        ctx.font = "bold 16px monospace";
+        ctx.fillText(this.messageSub, 400, 235);
+      }
+      ctx.restore();
     }
 
     // Section transition

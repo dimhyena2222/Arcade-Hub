@@ -15,6 +15,8 @@ class Enemy {
     this.facingRight = true;
     this.hurtTimer  = 0;
     this.HURT_DUR   = 120;
+    this.stunTimer  = 0;     // stun window
+    this.STUN_DUR   = 600;   // 0.6s
     this.age        = 0;
     this.stateTimer = 0;
     this.state      = 'idle';
@@ -91,6 +93,20 @@ class Enemy {
   _hurtFlash(ctx) {
     return this.hurtTimer > 0 && Math.floor(this.hurtTimer / 30) % 2 === 0;
   }
+
+  _drawStun(ctx) {
+    if (this.stunTimer <= 0) return;
+    ctx.save();
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#ffff00';
+    ctx.strokeStyle = '#ffff00';
+    ctx.lineWidth = 2;
+    const t = Date.now() * 0.01;
+    ctx.beginPath();
+    ctx.arc(this.cx, this.y - 12, 8, t, t + Math.PI * 0.8);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 // ── DRONE (flying, fires slow projectiles) ─────────────────
@@ -110,6 +126,7 @@ class Drone extends Enemy {
     const dtS = dt / 1000;
     this.age += dt;
     if (this.hurtTimer > 0) this.hurtTimer -= dt;
+    if (this.stunTimer > 0) { this.stunTimer -= dt; return; }
 
     // Bob and track player horizontally
     this.y = this.patrolY + Math.sin(this.age * 0.001 * this.bobSpd) * this.bobAmt;
@@ -122,7 +139,7 @@ class Drone extends Enemy {
 
     // Shoot
     this.shootCd -= dt;
-    if (this.shootCd <= 0 && this.distTo(player) < 320 && player.alive) {
+    if (this.shootCd <= 0 && this.distTo(player) < 640 && player.alive) {
       const angle = Math.atan2(player.cy - this.cy, player.cx - this.cx);
       const speed = 130;
       const proj  = new Projectile(
@@ -187,7 +204,7 @@ class BladeWalker extends Enemy {
     this.score   = 200;
     this.walkSpd = 70;
     this.chargeSpd = 240;
-    this.chargeCd  = 2500;
+    this.chargeCd  = 1000;
     this.chargeTimer = 0;
     this.isCharging  = false;
     this.chargeDur   = 500;
@@ -200,6 +217,8 @@ class BladeWalker extends Enemy {
     const dtS = dt / 1000;
     this.age += dt; this.stateTimer += dt;
     if (this.hurtTimer > 0) this.hurtTimer -= dt;
+    if (this.stunTimer > 0) { this.stunTimer -= dt; return; }
+    
     this.bladeAngle += dtS * 8;
 
     this.chargeCd -= dt;
@@ -217,15 +236,16 @@ class BladeWalker extends Enemy {
       this.vx = this.walkSpd * this.patrolDir;
       this.facingRight = this.patrolDir > 0;
 
-      // Charge if player nearby and on same level
-      if (this.distTo(player) < 280 &&
-          Math.abs(this.cy - player.cy) < 50 &&
+      // Charge if player nearby and mostly on same level
+      if (this.distTo(player) < 420 &&
+          Math.abs(this.cy - player.cy) < 120 &&
           this.chargeCd <= 0 && player.alive) {
         this.isCharging   = true;
         this.chargeTimer  = this.chargeDur;
         this.facingRight  = player.cx > this.cx;
         this.patrolDir    = this.facingRight ? 1 : -1;
         if (this.particles) this.particles.spark(this.cx, this.cy);
+        Audio.sfx.alert(); // Feedback
       }
     }
 
@@ -311,11 +331,14 @@ class TurretNode extends Enemy {
     const dtS = dt / 1000;
     this.age += dt;
     if (this.hurtTimer > 0) this.hurtTimer -= dt;
+    if (this.stunTimer > 0) { this.stunTimer -= dt; return; }
+    
     this.rotorAngle += dtS * 2;
 
     const dist = this.distTo(player);
-    if (dist < 400 && player.alive) {
-      this.alertTimer += dt;
+    if (dist < 750 && player.alive) {
+      if (dist < 400) this.alertTimer += dt * 2; // faster alert if closer
+      else           this.alertTimer += dt;
       this.shootCd -= dt;
       if (this.shootCd <= 0) { this._shoot(player); }
     } else { this.alertTimer = 0; }
@@ -419,6 +442,7 @@ class SolarEnforcer extends Enemy {
     const dtS = dt / 1000;
     this.age += dt;
     if (this.hurtTimer > 0) this.hurtTimer -= dt;
+    if (this.stunTimer > 0) { this.stunTimer -= dt; return; }
 
     const dist = this.distTo(player);
     this.facingRight = player.cx > this.cx;
@@ -461,6 +485,10 @@ class SolarEnforcer extends Enemy {
 
     this.applyGravity(dtS);
     this.moveAndCollide(dtS, platforms);
+
+    // Arena Bounds (Section 1 End)
+    if (this.x < 6000) { this.x = 6000; this.vx = 0; }
+    if (this.x > 7800) { this.x = 7800; this.vx = 0; }
   }
 
   _shootPattern(player) {
@@ -617,6 +645,8 @@ class HelionPrime extends Enemy {
     const dtS = dt / 1000;
     this.age += dt;
     if (this.hurtTimer > 0) this.hurtTimer -= dt;
+    if (this.stunTimer > 0) { this.stunTimer -= dt; return; }
+    
     this.shellAngle += dtS * (1 + (1 - this.hpRatio) * 3);
     this.eyeAngle    = Math.sin(this.age * 0.002) * 0.3;
 
@@ -648,7 +678,9 @@ class HelionPrime extends Enemy {
     // Pick new target position
     this.moveCd -= dt;
     if (this.moveCd <= 0) {
-      const arenaX = 80, arenaY = 120, arenaW = 640, arenaH = 280;
+      // Arena is in Section 3: 12000 - 16000
+      // We want to stay around 12500 - 14000
+      const arenaX = 12500, arenaY = 120, arenaW = 1500, arenaH = 280;
       this.targetX = arenaX + Math.random() * arenaW;
       this.targetY = arenaY + Math.random() * arenaH;
       this.moveCd  = 1200 + Math.random() * 800;

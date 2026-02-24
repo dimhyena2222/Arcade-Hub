@@ -18,8 +18,10 @@ class Player {
     // Stats
     this.maxHp  = 120;
     this.hp     = this.maxHp;
-    this.maxEnergy = 100;
+    this.maxEnergy = 150;
     this.energy    = this.maxEnergy;
+    this.regenDelay = 0;
+    this.REGEN_DELAY_DUR = 500; // 0.5s delay before regen
 
     // Movement constants
     this.WALK_SPEED  = 220;
@@ -34,11 +36,24 @@ class Player {
     this.canDash      = true;
     this.isDashing    = false;
     this.dashTimer    = 0;
-    this.DASH_DUR     = 150;     // ms
-    this.DASH_SPEED   = 450;
-    this.DASH_COOLDOWN = 600;
+    this.DASH_DUR     = 280;     // increased for longer range
+    this.DASH_SPEED   = 600;     // faster
+    this.DASH_COOLDOWN = 400;
     this.dashCooldown = 0;
     this.dashDir      = 1;
+
+    // Dodge & Parry
+    this.isDodging    = false;
+    this.dodgeTimer   = 0;
+    this.DODGE_DUR    = 400;
+    this.isBlocking   = false;
+    this.parryTimer   = 0;       // window for parry
+    this.PARRY_WINDOW = 300;     // 0.3s
+    this.stunnedEnemies = [];    // enemies to stun on parry (assigned by game)
+
+    // Jet Boots
+    this.jetActive    = false;
+    this.JET_ACCEL    = -1100;
 
     // Direction
     this.facingRight = true;
@@ -58,7 +73,7 @@ class Player {
     this.swingId = 0;
 
     // State
-    this.state  = 'idle'; // 'idle'|'run'|'jump'|'fall'|'crouch'|'attack'|'dash'|'hurt'|'dead'
+    this.state  = 'idle'; // 'idle'|'run'|'jump'|'fall'|'crouch'|'attack'|'dash'|'dodge'|'block'|'hurt'|'dead'
     this.anim   = 0;      // animation timer (ms)
     this.frame  = 0;
 
@@ -91,6 +106,10 @@ class Player {
     this.COYOTE_MAX  = 100;
     this.jumpBuffer  = 0;        // ms of pending jump input
     this.JUMP_BUFFER = 120;
+    
+    // Unlocks
+    this.canDoubleJump = false; // Initially false
+    this.jumpCount     = 0;
   }
 
   // ── Update ──────────────────────────────────────────────
@@ -111,10 +130,52 @@ class Player {
     if (this.hurtTimer     > 0)    this.hurtTimer  -= dt;
     if (this.invTimer      > 0) { this.invTimer -= dt; this.invincible = this.invTimer > 0; }
     if (this.dashCooldown  > 0)    this.dashCooldown -= dt;
+    if (this.dodgeTimer     > 0)    this.dodgeTimer  -= dt;
+    if (this.parryTimer     > 0)    this.parryTimer  -= dt;
     if (this.dropThroughTimer > 0) { this.dropThroughTimer -= dt; this.dropThrough = this.dropThroughTimer > 0; }
     if (this.jumpBuffer    > 0)    this.jumpBuffer -= dt;
     if (this.coyoteTime    > 0)    this.coyoteTime -= dt;
-    if (!this.onGround)            this.energy = Math.min(this.maxEnergy, this.energy + dtS * 8);
+
+    // Reset parry / block states
+    this.isDodging  = this.dodgeTimer > 0;
+    this.isBlocking = Input.block() && !this.isDodging;
+
+    // Energy recovery with delay
+    if (this.regenDelay > 0) {
+      this.regenDelay -= dt;
+    } else {
+      // Slower regen: 12/sec on ground, 4/sec in air
+      const regenRate = (this.isDashing || this.jetActive || this.isDodging) ? 0 : (this.onGround ? 12 : 4);
+      this.energy = Math.min(this.maxEnergy, this.energy + regenRate * dtS);
+    }
+
+    // Jet Boots
+    this.jetActive = (Input.jump() && !this.onGround && this.vy > -100 && this.energy > 5);
+    if (this.jetActive) {
+      this.vy += this.JET_ACCEL * dtS;
+      this.energy -= 45 * dtS; // drains quickly
+      this.regenDelay = this.REGEN_DELAY_DUR;
+      if (Math.random() < 0.4 && this.particles) this.particles.emit({
+        x: this.x + (this.facingRight ? 4 : this.w - 4), y: this.y + this.h,
+        count: 1, color: '#ffaa00', color2: '#ff4400',
+        vxRange: [-2, 2], vyRange: [2, 5], size: 4, life: 0.3
+      });
+    }
+
+    // Dodge Initiatons (Move + F)
+    if (Input.dodge() && (Input.moveLeft() || Input.moveRight()) && !this.isDodging && this.energy >= 25) {
+      this.isDodging = true;
+      this.dodgeTimer = this.DODGE_DUR;
+      this.energy -= 25;
+      this.regenDelay = this.REGEN_DELAY_DUR; // Reset delay
+      this.dashDir = Input.moveLeft() ? -1 : 1;
+      this.parryTimer = this.PARRY_WINDOW; // Start parry window
+      Audio.sfx.dash();
+    }
+    // Block (Just F)
+    if (Input.dodge() && !(Input.moveLeft() || Input.moveRight()) && !this.isDodging) {
+      this.parryTimer = this.PARRY_WINDOW; // Start parry window on block too
+    }
 
     // Dash
     if (this.isDashing) {
@@ -127,6 +188,15 @@ class Player {
       }
       // After images during dash
       if (Math.floor(this.anim / 30) % 2 === 0) {
+        this.afterImages.push({ x: this.x, y: this.y, life: 250 });
+      }
+    }
+
+    // Dodge logic
+    if (this.isDodging) {
+      this.vx = (this.DASH_SPEED * 0.8) * this.dashDir;
+      this.vy = 0;
+      if (Math.floor(this.anim / 40) % 2 === 0) {
         this.afterImages.push({ x: this.x, y: this.y, life: 180 });
       }
     }
@@ -137,13 +207,13 @@ class Player {
       if (this.afterImages[i].life <= 0) this.afterImages.splice(i, 1);
     }
 
-    // Input: Dash
-    if (Input.dash() && !this.isDashing && this.dashCooldown <= 0 && this.energy >= 20) {
+    // Input: Dash ... (redoing)
+    if (Input.dash() && !this.isDashing && this.dashCooldown <= 0 && this.energy >= 35) {
       this.isDashing    = true;
       this.dashTimer    = this.DASH_DUR;
       this.dashDir      = this.facingRight ? 1 : -1;
       this.dashCooldown = this.DASH_COOLDOWN;
-      this.energy      -= 20;
+      this.energy      -= 35; 
       if (this.particles) this.particles.emit({
         x: this.x + this.w * 0.5, y: this.y + this.h * 0.5,
         count: 8, color: '#88ccff', color2: '#ffffff',
@@ -153,19 +223,19 @@ class Player {
       Audio.sfx.dash();
     }
 
-    if (!this.isDashing) {
+    if (!this.isDashing && !this.isDodging) {
       this._handleMovement(dtS);
     }
 
     // Apply gravity
-    if (!this.isDashing) {
+    if (!this.isDashing && !this.isDodging && !this.jetActive) {
       this.vy += this.GRAVITY * dtS;
       this.vy  = Math.min(this.vy, this.MAX_FALL);
     }
 
-    // Variable jump height (release W to cut jump)
-    if (!Input.jump() && this.vy < -100) {
-      this.vy += this.GRAVITY * 1.2 * dtS;  // fast fall when W released early
+    // Variable jump height
+    if (!Input.jump() && this.vy < -100 && !this.jetActive) {
+      this.vy += this.GRAVITY * 1.2 * dtS;
     }
 
     // Move and collide
@@ -176,18 +246,23 @@ class Player {
 
     // World bounds
     if (this.x < 0)            { this.x = 0; this.vx = 0; }
-    if (this.x + this.w > 800) { this.x = 800 - this.w; this.vx = 0; }
+    if (this.x + this.w > 16000) { this.x = 16000 - this.w; this.vx = 0; }
 
     // Coyote time
     if (this.wasOnGround && !this.onGround) {
       this.coyoteTime = this.COYOTE_MAX;
     }
     this.wasOnGround = this.onGround;
+    if (this.onGround) this.jumpCount = 0; // Reset jumps
 
     // Jump with buffer
     if (Input.jumpJust()) this.jumpBuffer = this.JUMP_BUFFER;
-    if (this.jumpBuffer > 0 && (this.onGround || this.coyoteTime > 0)) {
-      this._doJump();
+    if (this.jumpBuffer > 0) {
+      if (this.onGround || this.coyoteTime > 0) {
+        this._doJump();
+      } else if (this.canDoubleJump && this.jumpCount < 1) {
+        this._doJump(true);
+      }
     }
 
     // Drop through pass-through platforms
@@ -224,21 +299,20 @@ class Player {
 
     // Weapons
     this._handleWeapons(dt);
-
-    // Energy regen on ground
-    if (this.onGround) {
-      this.energy = Math.min(this.maxEnergy, this.energy + dtS * 15);
-    }
   }
 
-  _doJump() {
-    this.vy         = this.JUMP_FORCE;
+  _doJump(isDouble = false) {
+    this.vy         = isDouble ? this.JUMP_FORCE * 1.1 : this.JUMP_FORCE;
     this.onGround   = false;
     this.coyoteTime = 0;
     this.jumpBuffer = 0;
-    Audio.sfx.jump();
+    this.jumpCount  = isDouble ? 2 : 1; 
+
+    Audio.sfx.jump(); // Reuse jump sound
+    const color = isDouble ? '#88ccff' : '#ffaa00';
     if (this.particles) this.particles.spark(
-      this.x + this.w * 0.5, this.y + this.h
+      this.x + this.w * 0.5, this.y + this.h, 10, color
+    );
     );
   }
 
@@ -323,12 +397,13 @@ class Player {
     const dtS = dt / 1000;
 
     // Hand Cannon
-    if ((Input.cannon() || Input.cannonJust()) && this.cannonCooldown <= 0 && !this.swordActive) {
+    if ((Input.cannon() || Input.cannonJust()) && this.cannonCooldown <= 0 && !this.swordActive && !this.isDodging && this.energy >= 8) {
       this._fireCannon();
+      this.energy -= 8;
     }
 
     // Laser Sword: hold to charge, release to fire
-    if (Input.sword()) {
+    if (Input.sword() && !this.isDodging) {
       if (!this.isCharging) {
         this.isCharging = true;
         this.swordCharge = 0;
@@ -346,7 +421,12 @@ class Player {
         this.particles.energyTrail(cx, cy, '#ff8c00');
       }
     } else if (this.isCharging) {
-      this._swingSword(this.swordCharge >= this.SWORD_CHARGE_MAX);
+      const isCharged = this.swordCharge >= this.SWORD_CHARGE_MAX;
+      const cost = isCharged ? 35 : 12;
+      if (this.energy >= cost) {
+        this._swingSword(isCharged);
+        this.energy -= cost;
+      }
       this.isCharging   = false;
       this.swordCharge  = 0;
       this.chargeSound  = false;
@@ -381,7 +461,6 @@ class Player {
     this.swingId++;  // new swing ID so each enemy is only hit once per swing
     if (charged) {
       Audio.sfx.swordChargeFire();
-      this.energy -= 25;
     } else {
       Audio.sfx.sword();
     }
@@ -409,7 +488,25 @@ class Player {
 
   // ── Take Damage ──────────────────────────────────────────
   takeDamage(amount) {
-    if (this.invincible || !this.alive) return;
+    if (this.invincible || !this.alive || this.isDodging) return false;
+
+    // Parry Check (0.3s window)
+    if (this.parryTimer > 0) {
+      this.parryTimer = 0;
+      this.invTimer = 800; // brief invincibility
+      this.invincible = true;
+      Audio.sfx.swordChargeFire(); // use a "ping" sound
+      if (this.particles) this.particles.spark(this.x + this.w * 0.5, this.y + this.h * 0.5, '#ffffff');
+      return "parry";
+    }
+
+    // Blocking reduces damage
+    if (this.isBlocking) {
+      amount = Math.ceil(amount * 0.25);
+      if (this.particles) this.particles.spark(this.x + this.w * 0.5, this.y + this.h * 0.5, '#88ccff');
+      Audio.sfx.land();
+    }
+
     this.hp        -= amount;
     this.hurtTimer  = this.HURT_DUR;
     this.invincible = true;
@@ -418,13 +515,13 @@ class Player {
     if (this.particles) this.particles.explosion(
       this.x + this.w * 0.5, this.y + this.h * 0.5, 0.8
     );
-    // Knockback
-    // (intentionally omitted – keep control through hits)
+
     if (this.hp <= 0) {
       this.hp    = 0;
       this.alive = false;
       Audio.sfx.enemyDie();
     }
+    return true;
   }
 
   heal(amount) {
@@ -459,6 +556,24 @@ class Player {
       ctx.fillStyle   = `rgba(255,140,0,${t * 0.7})`;
       ctx.beginPath();
       ctx.arc(cx, cy, 14 * t, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Blocking Shield Visual
+    if (this.isBlocking) {
+      const cx = this.x + this.w * 0.5 + (this.facingRight ? 12 : -12);
+      const cy = this.y + this.h * 0.5;
+      ctx.save();
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#00ccff';
+      ctx.strokeStyle = `rgba(0, 200, 255, ${0.4 + Math.random()*0.2})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 24, (this.facingRight ? -0.8 : 2.4), (this.facingRight ? 0.8 : 4.0));
+      ctx.stroke();
+      // Shield fill
+      ctx.fillStyle = `rgba(0, 100, 200, 0.15)`;
       ctx.fill();
       ctx.restore();
     }

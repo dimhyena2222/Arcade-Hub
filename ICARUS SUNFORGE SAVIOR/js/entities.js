@@ -379,6 +379,35 @@ class HealthPickup {
   }
 }
 
+// ── ABILITY PICKUP (Double Jump) ──────────────────────────
+class AbilityPickup {
+  constructor(x, y, type = 'double_jump') {
+    this.x    = x;
+    this.y    = y;
+    this.w    = 16;
+    this.h    = 16;
+    this.type = type;
+    this.alive = true;
+    this.age   = 0;
+  }
+  update(dt) { this.age += dt / 1000; }
+  draw(ctx) {
+    if (!this.alive) return;
+    const bob = Math.sin(this.age * 2) * 4;
+    ctx.save();
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#00ccff';
+    ctx.fillStyle = '#00ccff';
+    ctx.beginPath();
+    ctx.arc(this.x + 8, this.y + 8 + bob, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '10px monospace';
+    ctx.fillText('DJ', this.x + 2, this.y + 11 + bob);
+    ctx.restore();
+  }
+}
+
 // ── ENERGY PICKUP (refills sword charge) ──────────────────
 class EnergyPickup {
   constructor(x, y, amount = 50) {
