@@ -313,7 +313,6 @@ class Player {
     if (this.particles) this.particles.spark(
       this.x + this.w * 0.5, this.y + this.h, 10, color
     );
-    );
   }
 
   _handleMovement(dtS) {
@@ -521,7 +520,7 @@ class Player {
       this.alive = false;
       Audio.sfx.enemyDie();
     }
-    return true;
+    return 'hit';
   }
 
   heal(amount) {

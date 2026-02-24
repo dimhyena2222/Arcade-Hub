@@ -79,6 +79,17 @@ const Input = (() => {
       for (const k in justUp)   delete justUp[k];
       mouse.leftJust  = false;
       mouse.rightJust = false;
+    },
+
+    // Called when starting/restarting a game to clear all held state
+    reset() {
+      for (const k in keys)    delete keys[k];
+      for (const k in justDown) delete justDown[k];
+      for (const k in justUp)   delete justUp[k];
+      mouse.left      = false;
+      mouse.right     = false;
+      mouse.leftJust  = false;
+      mouse.rightJust = false;
     }
   };
 })();

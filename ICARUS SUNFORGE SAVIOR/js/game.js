@@ -143,6 +143,7 @@ class Game {
 
   // ── Game Start / Restart ──────────────────────────────────
   startGame() {
+    Input.reset();
     this.timer    = 0;
     this.score    = 0;
     this.projectiles = [];
@@ -180,10 +181,14 @@ class Game {
   // ── Main Loop ────────────────────────────────────────────
   _startLoop() {
     const loop = (timestamp) => {
-      const dt = Math.min(timestamp - this.lastTime, 50); // cap at 50ms (20fps min)
-      this.lastTime = timestamp;
-      this._update(dt);
-      this._draw();
+      try {
+        const dt = Math.min(timestamp - this.lastTime, 50); // cap at 50ms (20fps min)
+        this.lastTime = timestamp;
+        this._update(dt);
+        this._draw();
+      } catch (e) {
+        console.error('Game loop error:', e);
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(ts => { this.lastTime = ts; requestAnimationFrame(loop); });
@@ -615,6 +620,13 @@ class Game {
   }
 
   // ── Victory ───────────────────────────────────────────────
+  _triggerVictory() {
+    this.state = STATE.WIN;
+    Audio.stopMusic();
+    Audio.sfx.victory();
+    Audio.playMusic('win');
+  }
+
   _playerHurt(amount) {
     const res = this.player.takeDamage(amount);
     if (res === 'parry') {
