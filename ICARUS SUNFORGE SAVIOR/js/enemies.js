@@ -486,9 +486,9 @@ class SolarEnforcer extends Enemy {
     this.applyGravity(dtS);
     this.moveAndCollide(dtS, platforms);
 
-    // Arena Bounds (Section 1 End)
-    if (this.x < 6000) { this.x = 6000; this.vx = 0; }
-    if (this.x > 7800) { this.x = 7800; this.vx = 0; }
+    // Arena Bounds (800-wide canvas)
+    if (this.x < 60)  { this.x = 60;  this.vx = 0; }
+    if (this.x > 720) { this.x = 720; this.vx = 0; }
   }
 
   _shootPattern(player) {
@@ -678,9 +678,8 @@ class HelionPrime extends Enemy {
     // Pick new target position
     this.moveCd -= dt;
     if (this.moveCd <= 0) {
-      // Arena is in Section 3: 12000 - 16000
-      // We want to stay around 12500 - 14000
-      const arenaX = 12500, arenaY = 120, arenaW = 1500, arenaH = 280;
+      // Float around the 800x600 arena, upper half
+      const arenaX = 100, arenaY = 80, arenaW = 600, arenaH = 260;
       this.targetX = arenaX + Math.random() * arenaW;
       this.targetY = arenaY + Math.random() * arenaH;
       this.moveCd  = 1200 + Math.random() * 800;

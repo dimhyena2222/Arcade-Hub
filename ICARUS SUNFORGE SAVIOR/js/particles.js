@@ -50,6 +50,12 @@ class ParticleSystem {
   blood(x, y)       { this.emit({ x, y, count: 6, color: '#ff4444', color2: '#aa0000', vyRange: [-5, 0], vxRange: [-4, 4], size: 4, sizeEnd: 1, gravity: 400 }); }
   spark(x, y)       { this.emit({ x, y, count: 5, color: '#88ddff', color2: '#ffffff', vyRange: [-6, -2], vxRange: [-3, 3], size: 3, sizeEnd: 0, gravity: 350, life: 0.3 }); }
   land(x, y)        { this.emit({ x, y, count: 6, color: '#446688', color2: '#88aacc', vyRange: [-3, 0], vxRange: [-4, 4], size: 3, sizeEnd: 0, gravity: 400, life: 0.25 }); }
+  dash(x, y)        { this.emit({ x, y, count: 8, color: '#00ffcc', color2: '#ffffff', vyRange: [-2, 2], vxRange: [-5, 5], size: 4, sizeEnd: 0, gravity: 50, life: 0.25, glow: true }); }
+  muzzle(x, y)      { this.emit({ x, y, count: 6, color: '#ffdd00', color2: '#ffffff', vyRange: [-3, 3], vxRange: [-2, 2], size: 4, sizeEnd: 0, gravity: 80, life: 0.18, glow: true }); }
+  chargedSwing(x, y, right) {
+    const dx = right ? 1 : -1;
+    this.emit({ x: x + dx * 20, y, count: 14, color: '#ffffa0', color2: '#ffffff', vyRange: [-5, 5], vxRange: [dx * 2, dx * 7], size: 6, sizeEnd: 0, gravity: 80, life: 0.4, glow: true });
+  }
   energyTrail(x, y, col = '#ff8c00') {
     this.emit({ x, y, count: 2, color: col, vyRange: [-1, 0.5], vxRange: [-1, 1], size: 4, sizeEnd: 0, gravity: 0, life: 0.2, fade: true });
   }

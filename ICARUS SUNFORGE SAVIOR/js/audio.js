@@ -145,6 +145,10 @@ const Audio = (() => {
     footstep() {
       playNoise(0.03, 0.12, 2000);
     },
+    alert() {
+      playTone(880, 'square', 0.04, 0.2);
+      playTone(660, 'square', 0.04, 0.15, 0.04);
+    },
     plasma() {
       if (!ctx) return;
       const t = ctx.currentTime;
