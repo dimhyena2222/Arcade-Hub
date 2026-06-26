@@ -707,10 +707,17 @@ window.addEventListener('DOMContentLoaded', () => {
 (function scaleCanvas() {
   function resize() {
     const canvas = document.getElementById('gameCanvas');
+    const container = document.getElementById('game-container');
     if (!canvas) return;
     const scale = Math.min(window.innerWidth / 800, window.innerHeight / 600);
-    canvas.style.width  = Math.round(800 * scale) + 'px';
-    canvas.style.height = Math.round(600 * scale) + 'px';
+    const width  = Math.round(800 * scale);
+    const height = Math.round(600 * scale);
+    canvas.style.width  = width + 'px';
+    canvas.style.height = height + 'px';
+    if (container) {
+      container.style.width  = width + 'px';
+      container.style.height = height + 'px';
+    }
   }
   window.addEventListener('resize', resize);
   window.addEventListener('load',   resize);
